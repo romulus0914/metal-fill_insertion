@@ -464,7 +464,7 @@ void calculate_area_capacitance()
 {
 }
 
-void calculate_shielding_lateral_cap(vector<int> &edge, const Layout &cur_metal, const Layout &temp, int distance, int start, int end)
+int calculate_shielding_lateral_cap(vector<int> &edge, const Layout &cur_metal, const Layout &temp, int distance, int start, int end)
 {
     int length = 0;
     for (int i = start; i < end; i++) {
@@ -479,6 +479,8 @@ void calculate_shielding_lateral_cap(vector<int> &edge, const Layout &cur_metal,
     if (length != 0)
         lateral_cap = calculate_coupling_capacitance("lateral", cur_metal.layer, temp.layer, distance, length);
     cap[id_to_index(cur_metal.id - 1, temp.id - 1)] = lateral_cap;
+
+    return length;
 }
 
 void calculate_lateral_capacitance()
@@ -493,7 +495,8 @@ void calculate_lateral_capacitance()
 
         // candidate lateral metals
         set<int> candidate_metals;
-        // horizontal
+        // search quarter window for candidate metals, only need to consider the same row or col
+        // same row
         for (int x = 0; x < qwindow_x; x++) {
             for (int y = y_from; y <= y_to; y++) {
                 const vector<int> &qwindow_metals = quarter_windows[cur_metal.layer - 1][x * qwindow_y + y].contribute_metals;
@@ -508,7 +511,7 @@ void calculate_lateral_capacitance()
                 }
             }
         }
-        // vertical
+        // same col
         for (int y = 0; y < qwindow_y; y++) {
             for (int x = x_from; x <= x_to; x++) {
                 const vector<int> &qwindow_metals = quarter_windows[cur_metal.layer - 1][x * qwindow_y + y].contribute_metals;
@@ -524,32 +527,35 @@ void calculate_lateral_capacitance()
             }
         }
 
-        // horizontal and vertical lateral metals
+        // determine remaining metals belong to which direction
         vector<int> up, down, left, right;
-        for (int i : candidate_metals) {
-            const Layout &temp = layouts[i];
-            // determine if did not lateral then skip
+        for (int metal_id : candidate_metals) {
+            const Layout &temp = layouts[metal_id];
+            // determine if they can't see each other then skip (haven't consider shielding)
             if ((temp.tr_x <= cur_metal.bl_x || temp.bl_x >= cur_metal.tr_x) &&
                 (temp.bl_y >= cur_metal.tr_y || temp.tr_y <= cur_metal.bl_y))
                 continue;
-            // determine in which set
+            // determine in which direction
             if (temp.bl_y >=  cur_metal.tr_y)
-                up.emplace_back(i);
+                up.emplace_back(metal_id);
             else if (temp.tr_y <= cur_metal.bl_y)
-                down.emplace_back(i);
+                down.emplace_back(metal_id);
             else if (temp.tr_x <= cur_metal.bl_x)
-                left.emplace_back(i);
+                left.emplace_back(metal_id);
             else if (temp.bl_x >= cur_metal.tr_x)
-                right.emplace_back(i);
+                right.emplace_back(metal_id);
             else {
-                // shouldn't overlap, testcase problems, via metal
+                /* shouldn't overlap, testcase problems, via metal */
                 continue;
                 // printf("[Error] error in calculating lateral capcitance\n");
+                // printf("[Error] error in determine in which set\n");
                 // printf("[Error] %d:%d (%d, %d, %d, %d)\n", cur_metal.id, cur_metal.layer, cur_metal.bl_x, cur_metal.bl_y, cur_metal.tr_x, cur_metal.tr_y);
                 // printf("[Error] %d:%d (%d, %d, %d, %d)\n", temp.id, temp.layer, temp.bl_x, temp.bl_y, temp.tr_x, temp.tr_y);
                 // exit(1);
             }
         }
+        set<int>().swap(candidate_metals); // not sure if this works for set as vector to free memory
+
         // the nearer to the cur_metal, the sooner the metal should be evaluate
         sort(up.begin(), up.end(), [](const int &i, const int &j) {
             return layouts[i].bl_y < layouts[j].bl_y;
@@ -567,6 +573,8 @@ void calculate_lateral_capacitance()
         // up
         int width = cur_metal.tr_x - cur_metal.bl_x;
         vector<int> edge(width, 0);
+        // remaining lateral edge
+        int remaining_length = width;
         for (int metal_id : up) {
             const Layout &temp = layouts[metal_id];
             // distance between two metals
@@ -575,12 +583,20 @@ void calculate_lateral_capacitance()
             int x_start = cur_metal.bl_x > temp.bl_x ? cur_metal.bl_x - cur_metal.bl_x : temp.bl_x - cur_metal.bl_x;
             int x_end = cur_metal.tr_x < temp.tr_x ? cur_metal.tr_x - cur_metal.bl_x : temp.tr_x - cur_metal.bl_x;
 
-            calculate_shielding_lateral_cap(edge, cur_metal, temp, distance, x_start, x_end);
+            remaining_length -= calculate_shielding_lateral_cap(edge, cur_metal, temp, distance, x_start, x_end);
+            // if (remaining_length < 0) {
+            //     printf("[Error] error in calculating lateral capcitance\n");
+            //     printf("[Error] error in calculating lateral edge (smaller than 0)\n");
+            //     exit(1);
+            // }
+            if (remaining_length == 0)
+                break;
         }
         edge.clear();
 
         // down
         edge.insert(edge.begin(), width, 0);
+        remaining_length = width;
         for (int metal_id : down) {
             const Layout &temp = layouts[metal_id];
             // distance between two metals
@@ -590,12 +606,20 @@ void calculate_lateral_capacitance()
             int x_end = cur_metal.tr_x < temp.tr_x ? cur_metal.tr_x - cur_metal.bl_x : temp.tr_x - cur_metal.bl_x;
 
             calculate_shielding_lateral_cap(edge, cur_metal, temp, distance, x_start, x_end);
+            // if (remaining_length < 0) {
+            //     printf("[Error] error in calculating lateral capcitance\n");
+            //     printf("[Error] error in calculating lateral edge (smaller than 0)\n");
+            //     exit(1);
+            // }
+            if (remaining_length == 0)
+                break;
         }
         edge.clear();
 
         // left
         width = cur_metal.tr_y - cur_metal.bl_y;
         edge.insert(edge.begin(), width, 0);
+        remaining_length = width;
         for (int metal_id : left) {
             const Layout &temp = layouts[metal_id];
             // distance between two metals
@@ -605,11 +629,19 @@ void calculate_lateral_capacitance()
             int y_end = cur_metal.bl_y > temp.bl_y ? cur_metal.bl_y - cur_metal.bl_y : temp.bl_y - cur_metal.bl_y;
 
             calculate_shielding_lateral_cap(edge, cur_metal, temp, distance, y_start, y_end);
+            // if (remaining_length < 0) {
+            //     printf("[Error] error in calculating lateral capcitance\n");
+            //     printf("[Error] error in calculating lateral edge (smaller than 0)\n");
+            //     exit(1);
+            // }
+            if (remaining_length == 0)
+                break;
         }
         edge.clear();
 
         // right
         edge.insert(edge.begin(), width, 0);
+        remaining_length = width;
         for (int metal_id : right) {
             const Layout &temp = layouts[metal_id];
             // distance between two metals
@@ -619,14 +651,129 @@ void calculate_lateral_capacitance()
             int y_end = cur_metal.bl_y > temp.bl_y ? cur_metal.bl_y - cur_metal.bl_y : temp.bl_y - cur_metal.bl_y;
 
             calculate_shielding_lateral_cap(edge, cur_metal, temp, distance, y_start, y_end);
+            // if (remaining_length < 0) {
+            //     printf("[Error] error in calculating lateral capcitance\n");
+            //     printf("[Error] error in calculating lateral edge (smaller than 0)\n");
+            //     exit(1);
+            // }
+            if (remaining_length == 0)
+                break;
         }
         vector<int>().swap(edge);
         //printf("%d\r", current_metal);
     }
 }
 
+int calculate_shielding_fringe_cap(vector<int> &edge, const Layout &cur_metal, const Layout &temp, int distance, int start, int end)
+{
+    // no fringe cap between metals that are in same layer or projection overlapping
+    if ((cur_metal.layer == temp.layer) ||
+        !(temp.tr_x <= cur_metal.bl_x || temp.bl_x >= cur_metal.tr_x || temp.bl_y >= cur_metal.tr_y || temp.tr_y <= cur_metal.bl_y))
+        return 0;
+
+    int length = 0;
+    for (int i = start; i < end; i++) {
+        if (edge[i] == 0) {
+            length++;
+            edge[i] = 1;
+        }
+    }
+    
+    // fringe capacitance
+    double fringe_cap = 0.0;
+    if (length != 0)
+        fringe_cap = calculate_coupling_capacitance("fringe", cur_metal.layer, temp.layer, distance, length);
+    cap[id_to_index(cur_metal.id - 1, temp.id - 1)] = fringe_cap;
+
+    return length;
+}
+
+// should be similar to lateral, but consider overlapping coordinate in different layers
 void calculate_fringe_capacitance()
 {
+    for (int current_metal = 1; current_metal <= total_metals; current_metal++) {
+        const Layout &cur_metal = layouts[current_metal];
+        // quarter window index
+        int x_from = cur_metal.bl_x / stride;
+        int x_to = (cur_metal.tr_x - 1) / stride;
+        int y_from = cur_metal.bl_y / stride;
+        int y_to = (cur_metal.tr_y - 1) / stride;
+
+        // candidate fringe metals
+        set<int> candidate_metals;
+        for (int layer = cur_metal.layer; layer <= total_layers; layer++) {
+            // search quarter window for candidate metals, only need to consider the same row or col non matter in which layer
+            // same row
+            for (int x = 0; x < qwindow_x; x++) {
+                for (int y = y_from; y <= y_to; y++) {
+                    const vector<int> &qwindow_metals = quarter_windows[layer - 1][x * qwindow_y + y].contribute_metals;
+                    for (int metal_id : qwindow_metals) {
+                        // skip itself
+                        if (metal_id == current_metal)
+                            continue;
+                        /* because it search from cur_metal.layer to layer 9, no cap would calculate twice */
+                        // calculate already then skip
+                        // if (cap[id_to_index(current_metal - 1, metal_id - 1)] != 0)
+                        //     continue;
+                        candidate_metals.insert(metal_id);
+                    }
+                }
+            }
+            // same col
+            for (int y = 0; y < qwindow_y; y++) {
+                for (int x = x_from; x <= x_to; x++) {
+                    const vector<int> &qwindow_metals = quarter_windows[layer - 1][x * qwindow_y + y].contribute_metals;
+                    for (int metal_id : qwindow_metals) {
+                        // skip itself
+                        if (metal_id == current_metal)
+                            continue;
+                        /* because it search from cur_metal.layer to layer 9, no cap would calculate twice */
+                        // calculate already then skip
+                        // if (cap[id_to_index(current_metal - 1, metal_id - 1)] != 0)
+                        //     continue;
+                        candidate_metals.insert(metal_id);
+                    }
+                }
+            }
+        }
+
+        // determine remaining metals belong to which direction
+        vector<int> up, down, left, right;
+        for (int metal_id : candidate_metals) {
+             const Layout &temp = layouts[metal_id];
+            // determine if they can't see each other then skip (haven't consider shielding)
+            if ((temp.tr_x <= cur_metal.bl_x || temp.bl_x >= cur_metal.tr_x) &&
+                (temp.bl_y >= cur_metal.tr_y || temp.tr_y <= cur_metal.bl_y))
+                continue;
+            // determine in which direction
+            // unlike lateral, one metal may belong to more than one direction because projection ovelapping from different layers
+            if (temp.tr_y > cur_metal.tr_y)
+                up.emplace_back(metal_id);
+            if (temp.bl_y < cur_metal.bl_y)
+                down.emplace_back(metal_id);
+            if (temp.bl_x < cur_metal.bl_x)
+                left.emplace_back(metal_id);
+            if (temp.tr_x > cur_metal.tr_x)
+                right.emplace_back(metal_id);
+        }
+        set<int>().swap(candidate_metals); // not sure if this works for set as vector to free memory
+
+        // the nearer to the cur_metal, the sooner the metal should be evaluate
+        // consider the projection overlapping metals the same, their orders don't matter
+        //     just make sure they are in front of other metals 
+        sort(up.begin(), up.end(), [](const int &i, const int &j) {
+            return layouts[i].bl_y < layouts[j].bl_y;
+        });
+        sort(down.begin(), down.end(), [](const int &i, const int &j) {
+            return layouts[i].tr_y > layouts[j].tr_y;
+        });
+        sort(left.begin(), left.end(), [](const int &i, const int &j) {
+            return layouts[i].tr_x > layouts[j].tr_x;
+        });
+        sort(right.begin(), right.end(), [](const int &i, const int &j) {
+            return layouts[i].bl_x < layouts[j].bl_x;
+        });
+    }
 }
 
 void free_memory()
