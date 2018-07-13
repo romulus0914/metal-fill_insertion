@@ -61,8 +61,8 @@ void read_circuit()
     cb.width_y = cb.tr_y - cb.bl_y;
 
     Layout l = {.id = 0, .bl_x = -1, .bl_y = -1, .tr_x = -1, .tr_y = -1, 
-                .net_id = -1, .layer = -1, .type = -1};
-    layouts.push_back(l); // dummy layout to align id and index;
+                .net_id = -1, .layer = -1, .type = -1, .isCritical = false};
+    layouts.emplace_back(l); // dummy layout to align id and index;
     while (file >> l.id >> l.bl_x >> l.bl_y >> l.tr_x >> l.tr_y >> l.net_id >> l.layer >> str) {
         l.bl_x -= cb.bl_x;
         l.bl_y -= cb.bl_y;
@@ -82,12 +82,12 @@ void read_circuit()
         }
         l.isCritical = critical_nets.find(l.net_id) != critical_nets.end();
 
-        layouts.push_back(l);
+        layouts.emplace_back(l);
 
     //     // get or create the head node of that layer
     //     if (metals.size() < l.layer) {
     //         Metal *head = new Metal(l.id);
-    //         metals.push_back(head);
+    //         metals.emplace_back(head);
     //         continue;
     //     }
     //     Metal *metal = metals[l.layer - 1];
@@ -177,8 +177,8 @@ void read_process()
             size_t start = str.find("(");
             size_t mid = str.find(",");
             size_t end = str.find(")");
-            area_tables.push_back(str.substr(start + 1, mid - start - 1));
-            fringe_tables.push_back(str.substr(mid + 2, end - mid - 2));
+            area_tables.emplace_back(str.substr(start + 1, mid - start - 1));
+            fringe_tables.emplace_back(str.substr(mid + 2, end - mid - 2));
             str[start] = ';';
             str[mid] = ';';
             str[end] = ';';
@@ -208,7 +208,7 @@ void read_process()
         getline(file, str);
         char *ch = strtok((char *)str.c_str(), " ");
         while (ch != NULL) {
-            atbl.s.push_back(atof(ch));
+            atbl.s.emplace_back(atof(ch));
             ch = strtok(NULL, " ");
         }
 
@@ -217,8 +217,8 @@ void read_process()
         size_t mid = str.find(",");
         size_t end = str.find(")");
         while (start != string::npos) {
-            atbl.a.push_back(atof((char *)str.substr(start + 1, mid - start - 1).c_str()));
-            atbl.b.push_back(atof((char *)str.substr(mid + 2, end - mid - 2).c_str()));
+            atbl.a.emplace_back(atof((char *)str.substr(start + 1, mid - start - 1).c_str()));
+            atbl.b.emplace_back(atof((char *)str.substr(mid + 2, end - mid - 2).c_str()));
             str[start] = ';';
             str[mid] = ';';
             str[end] = ';';
@@ -246,7 +246,7 @@ void read_process()
         getline(file, str);
         char *ch = strtok((char *)str.c_str(), " ");
         while (ch != NULL) {
-            ftbl.d.push_back(atof(ch));
+            ftbl.d.emplace_back(atof(ch));
             ch = strtok(NULL, " ");
         }
 
@@ -255,8 +255,8 @@ void read_process()
         size_t mid = str.find(",");
         size_t end = str.find(")");
         if (start != string::npos) {
-            ftbl.a.push_back(stod(str.substr(start + 1, mid - start - 1)));
-            ftbl.b.push_back(stod(str.substr(mid + 2, end - mid - 2)));
+            ftbl.a.emplace_back(stod(str.substr(start + 1, mid - start - 1)));
+            ftbl.b.emplace_back(stod(str.substr(mid + 2, end - mid - 2)));
             str[start] = ';';
             str[mid] = ';';
             str[end] = ';';
@@ -282,7 +282,7 @@ void read_process()
         getline(file, str);
         char *ch = strtok((char *)str.c_str(), " ");
         while (ch != NULL) {
-            ftbl.d.push_back(atof(ch));
+            ftbl.d.emplace_back(atof(ch));
             ch = strtok(NULL, " ");
         }
 
@@ -291,8 +291,8 @@ void read_process()
         size_t mid = str.find(",");
         size_t end = str.find(")");
         if (start != string::npos) {
-            ftbl.a.push_back(stod(str.substr(start + 1, mid - start - 1)));
-            ftbl.b.push_back(stod(str.substr(mid + 2, end - mid - 2)));
+            ftbl.a.emplace_back(stod(str.substr(start + 1, mid - start - 1)));
+            ftbl.b.emplace_back(stod(str.substr(mid + 2, end - mid - 2)));
             str[start] = ';';
             str[mid] = ';';
             str[end] = ';';
@@ -314,7 +314,7 @@ void read_rule()
     string str;
     while (file >> r.layer >> str >> r.min_width >> r.min_space >> r.max_fill_width >> 
            r.min_density >> r.max_density)
-        rules.push_back(r);
+        rules.emplace_back(r);
 
     file.close();
 }
@@ -334,7 +334,7 @@ void analyze_density()
     int current_metal = 1;
     for (int layer = 1; layer <= total_layers; layer++) {
         // initialize quarter-window
-        Quarter_Window *qwindows = new Quarter_Window[qwindow_x * qwindow_y];
+        vector<Quarter_Window> qwindows(qwindow_x * qwindow_y);
         for (int x = 0; x < qwindow_x; x++) {
             int start = x * stride;
             int end = (x + 1) * stride;
@@ -369,7 +369,7 @@ void analyze_density()
 				    y_end = y == y_to ? temp.tr_y : (y + 1) * stride;
 				    area = (x_end - x_start) * (y_end - y_start);
 				    qwindows[x * qwindow_y + y].area += area;
-                    qwindows[x * qwindow_y + y].contribute_metals.push_back(temp.id);
+                    qwindows[x * qwindow_y + y].contribute_metals.emplace_back(temp.id);
 			    }
 		    }
             if (++current_metal == total_metals + 1)
@@ -377,7 +377,7 @@ void analyze_density()
             temp = layouts[current_metal];
         }
 
-        Window *ws = new Window[window_x * window_y];
+        vector<Window> ws(window_x * window_y);
         for (int x = 0; x < window_x; x++) {
             for (int y = 0; y < window_y; y++) {
                 int index = x * window_y + y;
@@ -392,8 +392,8 @@ void analyze_density()
                 }
             }
         }
-        quarter_windows.push_back(qwindows);
-        windows.push_back(ws);
+        quarter_windows.emplace_back(qwindows);
+        windows.emplace_back(ws);
     }
 }
 
@@ -454,7 +454,7 @@ long long id_to_index(int id1, int id2)
 {
     if (id1 == 0 && id2 == 0)
         return 0;
-    if (id1 <= id2)
+    else if (id1 <= id2)
         return (1 + id2) * id2 / 2 + id1;
     else
         return (1 + id1) * id1 / 2 + id2;
@@ -464,7 +464,7 @@ void calculate_area_capacitance()
 {
 }
 
-void calculate_shielding_lateral_cap(int *edge, const Layout &cur_metal, const Layout &temp, int distance, int start, int end)
+void calculate_shielding_lateral_cap(vector<int> &edge, const Layout &cur_metal, const Layout &temp, int distance, int start, int end)
 {
     int length = 0;
     for (int i = start; i < end; i++) {
@@ -485,7 +485,7 @@ void calculate_lateral_capacitance()
 {
     for (int current_metal = 1; current_metal <= total_metals; current_metal++) {
         const Layout &cur_metal = layouts[current_metal];
-        // quarter window index
+        // quarter window indexn
         int x_from = cur_metal.bl_x / stride;
         int x_to = (cur_metal.tr_x - 1) / stride;
         int y_from = cur_metal.bl_y / stride;
@@ -534,16 +534,20 @@ void calculate_lateral_capacitance()
                 continue;
             // determine in which set
             if (temp.bl_y >=  cur_metal.tr_y)
-                up.push_back(i);
+                up.emplace_back(i);
             else if (temp.tr_y <= cur_metal.bl_y)
-                down.push_back(i);
+                down.emplace_back(i);
             else if (temp.tr_x <= cur_metal.bl_x)
-                left.push_back(i);
+                left.emplace_back(i);
             else if (temp.bl_x >= cur_metal.tr_x)
-                right.push_back(i);
+                right.emplace_back(i);
             else {
-                printf("[Error] error in calculating lateral capcitance\n");
-                exit(1);
+                // shouldn't overlap, testcase problems, via metal
+                continue;
+                // printf("[Error] error in calculating lateral capcitance\n");
+                // printf("[Error] %d:%d (%d, %d, %d, %d)\n", cur_metal.id, cur_metal.layer, cur_metal.bl_x, cur_metal.bl_y, cur_metal.tr_x, cur_metal.tr_y);
+                // printf("[Error] %d:%d (%d, %d, %d, %d)\n", temp.id, temp.layer, temp.bl_x, temp.bl_y, temp.tr_x, temp.tr_y);
+                // exit(1);
             }
         }
         // the nearer to the cur_metal, the sooner the metal should be evaluate
@@ -562,7 +566,7 @@ void calculate_lateral_capacitance()
 
         // up
         int width = cur_metal.tr_x - cur_metal.bl_x;
-        int *up_edge = new int[width]();
+        vector<int> edge(width, 0);
         for (int metal_id : up) {
             const Layout &temp = layouts[metal_id];
             // distance between two metals
@@ -571,12 +575,12 @@ void calculate_lateral_capacitance()
             int x_start = cur_metal.bl_x > temp.bl_x ? cur_metal.bl_x - cur_metal.bl_x : temp.bl_x - cur_metal.bl_x;
             int x_end = cur_metal.tr_x < temp.tr_x ? cur_metal.tr_x - cur_metal.bl_x : temp.tr_x - cur_metal.bl_x;
 
-            calculate_shielding_lateral_cap(up_edge, cur_metal, temp, distance, x_start, x_end);
+            calculate_shielding_lateral_cap(edge, cur_metal, temp, distance, x_start, x_end);
         }
-        delete[] up_edge;
+        edge.clear();
 
         // down
-        int *down_edge = new int[width]();
+        edge.insert(edge.begin(), width, 0);
         for (int metal_id : down) {
             const Layout &temp = layouts[metal_id];
             // distance between two metals
@@ -585,12 +589,13 @@ void calculate_lateral_capacitance()
             int x_start = cur_metal.bl_x > temp.bl_x ? cur_metal.bl_x - cur_metal.bl_x : temp.bl_x - cur_metal.bl_x;
             int x_end = cur_metal.tr_x < temp.tr_x ? cur_metal.tr_x - cur_metal.bl_x : temp.tr_x - cur_metal.bl_x;
 
-            calculate_shielding_lateral_cap(down_edge, cur_metal, temp, distance, x_start, x_end);
+            calculate_shielding_lateral_cap(edge, cur_metal, temp, distance, x_start, x_end);
         }
+        edge.clear();
 
         // left
         width = cur_metal.tr_y - cur_metal.bl_y;
-        int *left_edge = new int[width]();
+        edge.insert(edge.begin(), width, 0);
         for (int metal_id : left) {
             const Layout &temp = layouts[metal_id];
             // distance between two metals
@@ -599,12 +604,12 @@ void calculate_lateral_capacitance()
             int y_start = cur_metal.tr_y < temp.tr_y ? cur_metal.tr_y - cur_metal.bl_y : temp.tr_y - cur_metal.bl_y;
             int y_end = cur_metal.bl_y > temp.bl_y ? cur_metal.bl_y - cur_metal.bl_y : temp.bl_y - cur_metal.bl_y;
 
-            calculate_shielding_lateral_cap(left_edge, cur_metal, temp, distance, y_start, y_end);
+            calculate_shielding_lateral_cap(edge, cur_metal, temp, distance, y_start, y_end);
         }
-        delete[] left_edge;
+        edge.clear();
 
         // right
-        int *right_edge = new int[width]();
+        edge.insert(edge.begin(), width, 0);
         for (int metal_id : right) {
             const Layout &temp = layouts[metal_id];
             // distance between two metals
@@ -613,10 +618,10 @@ void calculate_lateral_capacitance()
             int y_start = cur_metal.tr_y < temp.tr_y ? cur_metal.tr_y - cur_metal.bl_y : temp.tr_y - cur_metal.bl_y;
             int y_end = cur_metal.bl_y > temp.bl_y ? cur_metal.bl_y - cur_metal.bl_y : temp.bl_y - cur_metal.bl_y;
 
-            calculate_shielding_lateral_cap(right_edge, cur_metal, temp, distance, y_start, y_end);
+            calculate_shielding_lateral_cap(edge, cur_metal, temp, distance, y_start, y_end);
         }
-        delete[] right_edge;
-        printf("%d\n", current_metal);
+        vector<int>().swap(edge);
+        //printf("%d\r", current_metal);
     }
 }
 
@@ -644,11 +649,6 @@ void free_memory()
     //     }
     //     metals[i] = NULL;
     // }
-
-    for (int i = 0; i < total_layers; i++) {
-        delete[] quarter_windows[i];
-        delete[] windows[i];
-    }
 }
 
 int main(int argc, char **argv)
