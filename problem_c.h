@@ -13,7 +13,7 @@ typedef struct chip_boundary {
     int tr_y;
     int width_x;
     int width_y;
-} Chip_Boundary;
+} ChipBoundary;
 
 typedef struct layout {
     int id;
@@ -70,7 +70,7 @@ typedef struct quarter_window {
     int y_end;
     std::vector<int> contribute_metals;
     int violate_count;
-} Quarter_Window;
+} QuarterWindow;
 
 typedef struct window {
     long long area;
@@ -81,13 +81,13 @@ typedef struct area_table {
     std::vector<double> s;
     std::vector<double> a;
     std::vector<double> b;
-} Area_Table;
+} AreaTable;
 
 typedef struct fringe_table {
     std::vector<double> d;
     std::vector<double> a;
     std::vector<double> b;
-} Fringe_Table; // including special case lateral
+} FringeTable; // including special case lateral
 
 std::string path = "iccad2018-contest-master/circuit1/";
 
@@ -103,7 +103,7 @@ std::unordered_set<int> critical_nets;
 int power_net, ground_net;
 
 // circuit file
-Chip_Boundary cb;
+ChipBoundary cb;
 std::vector<Layout> layouts;
 
 // process file
@@ -119,7 +119,7 @@ std::vector<Rule> rules;
 // std::vector<Metal*> metals;
 
 // 1/4 window
-std::vector<std::vector<Quarter_Window>> quarter_windows;
+std::vector<std::vector<QuarterWindow>> quarter_windows;
 
 // sliding window
 std::vector<std::vector<Window>> windows;
@@ -127,8 +127,8 @@ std::vector<std::vector<Window>> windows;
 // capacitance tables
 std::vector<std::string> area_tables;
 std::vector<std::string> fringe_tables;
-std::map<std::string, Area_Table> area_table_map;
-std::map<std::string, Fringe_Table> fringe_table_map; // incuding lateral table
+std::map<std::string, AreaTable> area_table_map;
+std::map<std::string, FringeTable> fringe_table_map; // incuding lateral table
 
 // coupling capacitance
 std::unordered_map<long long, double> cap;
