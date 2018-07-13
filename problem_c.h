@@ -119,10 +119,10 @@ std::vector<Rule> rules;
 // std::vector<Metal*> metals;
 
 // 1/4 window
-std::vector<Quarter_Window*> quarter_windows;
+std::vector<std::vector<Quarter_Window>> quarter_windows;
 
 // sliding window
-std::vector<Window*> windows;
+std::vector<std::vector<Window>> windows;
 
 // capacitance tables
 std::vector<std::string> area_tables;
