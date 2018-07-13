@@ -8,7 +8,7 @@
 
 using namespace std;
 
-void read_config()
+void ReadConfig()
 {
     ifstream file(config_file);
 
@@ -39,7 +39,7 @@ void read_config()
     file.close();
 }
 
-void read_circuit()
+void ReadCircuit()
 {
     ifstream file(path + circuit_file);
 
@@ -159,7 +159,7 @@ void read_circuit()
     total_layers = layouts[total_metals - 1].layer;
 }
 
-void read_process()
+void ReadProcess()
 {
     ifstream file(path + process_file);
 
@@ -200,7 +200,7 @@ void read_process()
 
     string table_name;
     for (int i = 0; i < total_area_tables; i++) {
-        Area_Table atbl;
+        AreaTable atbl;
         file >> str >> table_name;
         getline(file, str); // previous line
         getline(file, str); // comment line
@@ -238,7 +238,7 @@ void read_process()
     getline(file, str);
 
     for (int i = 0; i < total_lateral_tables; i++) {
-        Fringe_Table ftbl;
+        FringeTable ftbl;
         file >> str >> table_name;
         getline(file, str); // previous line
         getline(file, str); // comment line
@@ -274,7 +274,7 @@ void read_process()
     getline(file, str);
 
     for (int i = 0; i < total_fringe_tables; i++) {
-        Fringe_Table ftbl;
+        FringeTable ftbl;
         file >> str >> table_name;
         getline(file, str); // previous line
         getline(file, str); // comment line
@@ -306,7 +306,7 @@ void read_process()
     file.close();
 }
 
-void read_rule()
+void ReadRule()
 {
     ifstream file(path + rule_file);
 
@@ -319,7 +319,7 @@ void read_rule()
     file.close();
 }
 
-void analyze_density()
+void AnalyzeDensity()
 {
     stride = window_size / 2;
     long long w_area = window_size * window_size; 
@@ -334,7 +334,7 @@ void analyze_density()
     int current_metal = 1;
     for (int layer = 1; layer <= total_layers; layer++) {
         // initialize quarter-window
-        vector<Quarter_Window> qwindows(qwindow_x * qwindow_y);
+        vector<QuarterWindow> qwindows(qwindow_x * qwindow_y);
         for (int x = 0; x < qwindow_x; x++) {
             int start = x * stride;
             int end = (x + 1) * stride;
@@ -404,10 +404,10 @@ void analyze_density()
     param1: parameter to look up in tables, (s for "area", d for "lateral" and "fringe")
     param2: parameter to multiply, (s for "area", l for "lateral" and "fringe")
 */
-double calculate_coupling_capacitance(string type,int layer1, int layer2, double param1, double param2)
+double CalculateCouplingCapacitance(string type,int layer1, int layer2, double param1, double param2)
 {
     if (type == "area") {
-        const Area_Table &atbl = area_table_map[area_tables[layer1 * total_layers + layer2]];
+        const AreaTable &atbl = area_table_map[area_tables[layer1 * total_layers + layer2]];
         int size = atbl.s.size();
         for (int i = 0; i < size; i++) {
             if (param1 < atbl.s[i]) {
@@ -421,7 +421,7 @@ double calculate_coupling_capacitance(string type,int layer1, int layer2, double
         return (atbl.a[last] * atbl.s[last] + atbl.b[last]) * atbl.s[last] * (param1 / atbl.s[last]);
     }
     else if (type == "lateral") {
-        const Fringe_Table &ltbl = fringe_table_map[fringe_tables[layer1 * total_layers + layer1]]; // layer1 == layer2
+        const FringeTable &ltbl = fringe_table_map[fringe_tables[layer1 * total_layers + layer1]]; // layer1 == layer2
         int size = ltbl.d.size();
         for (int i = 0; i < size; i++) {
             if (param1 < ltbl.d[i]) {
@@ -434,8 +434,8 @@ double calculate_coupling_capacitance(string type,int layer1, int layer2, double
         return 0.0;
     }
     else if (type == "fringe") {
-        const Fringe_Table &ftbl1 = fringe_table_map[fringe_tables[layer1 * total_layers + layer2]];
-        const Fringe_Table &ftbl2 = fringe_table_map[fringe_tables[layer2 * total_layers + layer1]];
+        const FringeTable &ftbl1 = fringe_table_map[fringe_tables[layer1 * total_layers + layer2]];
+        const FringeTable &ftbl2 = fringe_table_map[fringe_tables[layer2 * total_layers + layer1]];
         double coupling_cap = 0.0;
         int size = ftbl1.d.size();
         for (int i = 0; i < size; i++)
@@ -450,7 +450,7 @@ double calculate_coupling_capacitance(string type,int layer1, int layer2, double
 }
 
 // transform two ids to symmetric, lower triangular matrix index (0 based)
-long long id_to_index(int id1, int id2)
+long long IdToIndex(int id1, int id2)
 {
     if (id1 == 0 && id2 == 0)
         return 0;
@@ -460,11 +460,11 @@ long long id_to_index(int id1, int id2)
         return (1 + id1) * id1 / 2 + id2;
 }
 
-void calculate_area_capacitance()
+void CalculateAreaCapacitance()
 {
 }
 
-int calculate_shielding_lateral_cap(vector<int> &edge, const Layout &cur_metal, const Layout &temp, int distance, int start, int end)
+int CalculateShieldingLateralCap(vector<int> &edge, const Layout &cur_metal, const Layout &temp, int distance, int start, int end)
 {
     int length = 0;
     for (int i = start; i < end; i++) {
@@ -477,13 +477,13 @@ int calculate_shielding_lateral_cap(vector<int> &edge, const Layout &cur_metal, 
     // lateral capacitance
     double lateral_cap = 0.0;
     if (length != 0)
-        lateral_cap = calculate_coupling_capacitance("lateral", cur_metal.layer, temp.layer, distance, length);
-    cap[id_to_index(cur_metal.id - 1, temp.id - 1)] = lateral_cap;
+        lateral_cap = CalculateCouplingCapacitance("lateral", cur_metal.layer, temp.layer, distance, length);
+    cap[IdToIndex(cur_metal.id - 1, temp.id - 1)] = lateral_cap;
 
     return length;
 }
 
-void calculate_lateral_capacitance()
+void CalculateLateralCapacitance()
 {
     for (int current_metal = 1; current_metal <= total_metals; current_metal++) {
         const Layout &cur_metal = layouts[current_metal];
@@ -505,7 +505,7 @@ void calculate_lateral_capacitance()
                     if (metal_id == current_metal)
                         continue;
                     // calculate already then skip
-                    if (cap[id_to_index(current_metal - 1, metal_id - 1)] != 0)
+                    if (cap[IdToIndex(current_metal - 1, metal_id - 1)] != 0)
                         continue;
                     candidate_metals.insert(metal_id);
                 }
@@ -520,7 +520,7 @@ void calculate_lateral_capacitance()
                     if (metal_id == current_metal)
                         continue;
                     // calculate already then skip
-                    if (cap[id_to_index(current_metal - 1, metal_id - 1)] != 0)
+                    if (cap[IdToIndex(current_metal - 1, metal_id - 1)] != 0)
                         continue;
                     candidate_metals.insert(metal_id);
                 }
@@ -583,7 +583,7 @@ void calculate_lateral_capacitance()
             int x_start = cur_metal.bl_x > temp.bl_x ? cur_metal.bl_x - cur_metal.bl_x : temp.bl_x - cur_metal.bl_x;
             int x_end = cur_metal.tr_x < temp.tr_x ? cur_metal.tr_x - cur_metal.bl_x : temp.tr_x - cur_metal.bl_x;
 
-            remaining_length -= calculate_shielding_lateral_cap(edge, cur_metal, temp, distance, x_start, x_end);
+            remaining_length -= CalculateShieldingLateralCap(edge, cur_metal, temp, distance, x_start, x_end);
             // if (remaining_length < 0) {
             //     printf("[Error] error in calculating lateral capcitance\n");
             //     printf("[Error] error in calculating lateral edge (smaller than 0)\n");
@@ -605,7 +605,7 @@ void calculate_lateral_capacitance()
             int x_start = cur_metal.bl_x > temp.bl_x ? cur_metal.bl_x - cur_metal.bl_x : temp.bl_x - cur_metal.bl_x;
             int x_end = cur_metal.tr_x < temp.tr_x ? cur_metal.tr_x - cur_metal.bl_x : temp.tr_x - cur_metal.bl_x;
 
-            calculate_shielding_lateral_cap(edge, cur_metal, temp, distance, x_start, x_end);
+            CalculateShieldingLateralCap(edge, cur_metal, temp, distance, x_start, x_end);
             // if (remaining_length < 0) {
             //     printf("[Error] error in calculating lateral capcitance\n");
             //     printf("[Error] error in calculating lateral edge (smaller than 0)\n");
@@ -628,7 +628,7 @@ void calculate_lateral_capacitance()
             int y_start = cur_metal.tr_y < temp.tr_y ? cur_metal.tr_y - cur_metal.bl_y : temp.tr_y - cur_metal.bl_y;
             int y_end = cur_metal.bl_y > temp.bl_y ? cur_metal.bl_y - cur_metal.bl_y : temp.bl_y - cur_metal.bl_y;
 
-            calculate_shielding_lateral_cap(edge, cur_metal, temp, distance, y_start, y_end);
+            CalculateShieldingLateralCap(edge, cur_metal, temp, distance, y_start, y_end);
             // if (remaining_length < 0) {
             //     printf("[Error] error in calculating lateral capcitance\n");
             //     printf("[Error] error in calculating lateral edge (smaller than 0)\n");
@@ -650,7 +650,7 @@ void calculate_lateral_capacitance()
             int y_start = cur_metal.tr_y < temp.tr_y ? cur_metal.tr_y - cur_metal.bl_y : temp.tr_y - cur_metal.bl_y;
             int y_end = cur_metal.bl_y > temp.bl_y ? cur_metal.bl_y - cur_metal.bl_y : temp.bl_y - cur_metal.bl_y;
 
-            calculate_shielding_lateral_cap(edge, cur_metal, temp, distance, y_start, y_end);
+            CalculateShieldingLateralCap(edge, cur_metal, temp, distance, y_start, y_end);
             // if (remaining_length < 0) {
             //     printf("[Error] error in calculating lateral capcitance\n");
             //     printf("[Error] error in calculating lateral edge (smaller than 0)\n");
@@ -664,7 +664,7 @@ void calculate_lateral_capacitance()
     }
 }
 
-int calculate_shielding_fringe_cap(vector<int> &edge, const Layout &cur_metal, const Layout &temp, int distance, int start, int end)
+int CalculateShieldingFringeCap(vector<int> &edge, const Layout &cur_metal, const Layout &temp, int distance, int start, int end)
 {
     // no fringe cap between metals that are in same layer or projection overlapping
     if ((cur_metal.layer == temp.layer) ||
@@ -682,14 +682,14 @@ int calculate_shielding_fringe_cap(vector<int> &edge, const Layout &cur_metal, c
     // fringe capacitance
     double fringe_cap = 0.0;
     if (length != 0)
-        fringe_cap = calculate_coupling_capacitance("fringe", cur_metal.layer, temp.layer, distance, length);
-    cap[id_to_index(cur_metal.id - 1, temp.id - 1)] = fringe_cap;
+        fringe_cap = CalculateCouplingCapacitance("fringe", cur_metal.layer, temp.layer, distance, length);
+    cap[IdToIndex(cur_metal.id - 1, temp.id - 1)] = fringe_cap;
 
     return length;
 }
 
 // should be similar to lateral, but consider overlapping coordinate in different layers
-void calculate_fringe_capacitance()
+void CalculateFringeCapacitance()
 {
     for (int current_metal = 1; current_metal <= total_metals; current_metal++) {
         const Layout &cur_metal = layouts[current_metal];
@@ -713,7 +713,7 @@ void calculate_fringe_capacitance()
                             continue;
                         /* because it search from cur_metal.layer to layer 9, no cap would calculate twice */
                         // calculate already then skip
-                        // if (cap[id_to_index(current_metal - 1, metal_id - 1)] != 0)
+                        // if (cap[IdToIndex(current_metal - 1, metal_id - 1)] != 0)
                         //     continue;
                         candidate_metals.insert(metal_id);
                     }
@@ -729,7 +729,7 @@ void calculate_fringe_capacitance()
                             continue;
                         /* because it search from cur_metal.layer to layer 9, no cap would calculate twice */
                         // calculate already then skip
-                        // if (cap[id_to_index(current_metal - 1, metal_id - 1)] != 0)
+                        // if (cap[IdToIndex(current_metal - 1, metal_id - 1)] != 0)
                         //     continue;
                         candidate_metals.insert(metal_id);
                     }
@@ -805,19 +805,19 @@ int main(int argc, char **argv)
         exit(1);
     }
     config_file = argv[1];
-    read_config();
-    read_circuit();
-    read_process();
-    read_rule();
+    ReadConfig();
+    ReadCircuit();
+    ReadProcess();
+    ReadRule();
 
-    analyze_density();
+    AnalyzeDensity();
     
     long long total_map_size = total_metals * (total_metals + 1) / 2;
     for (long long i = 0; i < total_map_size; i++)
         cap[i] = 0;
-    //calculate_area_capacitance();
-    calculate_lateral_capacitance();
-    //calculate_fringe_capacitance();
+    //CalculateAreaCapacitance();
+    CalculateLateralCapacitance();
+    //CalculateFringeCapacitance();
 
     free_memory();
 
