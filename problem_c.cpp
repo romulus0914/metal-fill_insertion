@@ -660,7 +660,6 @@ void CalculateLateralCapacitance()
                 break;
         }
         vector<int>().swap(edge);
-        //printf("%d\r", current_metal);
     }
 }
 
@@ -693,6 +692,9 @@ void CalculateFringeCapacitance()
 {
     for (int current_metal = 1; current_metal <= total_metals; current_metal++) {
         const Layout &cur_metal = layouts[current_metal];
+        // the highest layer no more fringe cap to calculate
+        if (cur_metal.layer == total_layers)
+            break;
         // quarter window index
         int x_from = cur_metal.bl_x / stride;
         int x_to = (cur_metal.tr_x - 1) / stride;
@@ -773,6 +775,97 @@ void CalculateFringeCapacitance()
         sort(right.begin(), right.end(), [](const int &i, const int &j) {
             return layouts[i].bl_x < layouts[j].bl_x;
         });
+
+        // up
+        int width = cur_metal.tr_x - cur_metal.bl_x;
+        vector<int> edge(width, 0);
+        // remaining fringe edge
+        int remaining_length = width;
+        for (int metal_id : up) {
+            const Layout &temp = layouts[metal_id];
+            // distance between two metals
+            int distance = temp.bl_y - cur_metal.tr_y;
+            // raw intersect length (without shielding)
+            int x_start = cur_metal.bl_x > temp.bl_x ? cur_metal.bl_x - cur_metal.bl_x : temp.bl_x - cur_metal.bl_x;
+            int x_end = cur_metal.tr_x < temp.tr_x ? cur_metal.tr_x - cur_metal.bl_x : temp.tr_x - cur_metal.bl_x;
+
+            remaining_length -= CalculateShieldingFringeCap(edge, cur_metal, temp, distance, x_start, x_end);
+            // if (remaining_length < 0) {
+            //     printf("[Error] error in calculating Fringe capcitance\n");
+            //     printf("[Error] error in calculating Fringe edge (smaller than 0)\n");
+            //     exit(1);
+            // }
+            if (remaining_length == 0)
+                break;
+        }
+        edge.clear();
+
+        // down
+        edge.insert(edge.begin(), width, 0);
+        remaining_length = width;
+        for (int metal_id : down) {
+            const Layout &temp = layouts[metal_id];
+            // distance between two metals
+            int distance = cur_metal.bl_y - temp.tr_y;
+            // raw intersect length (without shielding)
+            int x_start = cur_metal.bl_x > temp.bl_x ? cur_metal.bl_x - cur_metal.bl_x : temp.bl_x - cur_metal.bl_x;
+            int x_end = cur_metal.tr_x < temp.tr_x ? cur_metal.tr_x - cur_metal.bl_x : temp.tr_x - cur_metal.bl_x;
+
+            CalculateShieldingFringeCap(edge, cur_metal, temp, distance, x_start, x_end);
+            // if (remaining_length < 0) {
+            //     printf("[Error] error in calculating Fringe capcitance\n");
+            //     printf("[Error] error in calculating Fringe edge (smaller than 0)\n");
+            //     exit(1);
+            // }
+            if (remaining_length == 0)
+                break;
+        }
+        edge.clear();
+
+        // left
+        width = cur_metal.tr_y - cur_metal.bl_y;
+        edge.insert(edge.begin(), width, 0);
+        remaining_length = width;
+        for (int metal_id : left) {
+            const Layout &temp = layouts[metal_id];
+            // distance between two metals
+            int distance = cur_metal.bl_x - temp.tr_x;
+            // raw intersect length (without shielding)
+            int y_start = cur_metal.tr_y < temp.tr_y ? cur_metal.tr_y - cur_metal.bl_y : temp.tr_y - cur_metal.bl_y;
+            int y_end = cur_metal.bl_y > temp.bl_y ? cur_metal.bl_y - cur_metal.bl_y : temp.bl_y - cur_metal.bl_y;
+
+            CalculateShieldingFringeCap(edge, cur_metal, temp, distance, y_start, y_end);
+            // if (remaining_length < 0) {
+            //     printf("[Error] error in calculating Fringe capcitance\n");
+            //     printf("[Error] error in calculating Fringe edge (smaller than 0)\n");
+            //     exit(1);
+            // }
+            if (remaining_length == 0)
+                break;
+        }
+        edge.clear();
+
+        // right
+        edge.insert(edge.begin(), width, 0);
+        remaining_length = width;
+        for (int metal_id : right) {
+            const Layout &temp = layouts[metal_id];
+            // distance between two metals
+            int distance = temp.bl_x - cur_metal.tr_x;
+            // raw intersect length (without shielding)
+            int y_start = cur_metal.tr_y < temp.tr_y ? cur_metal.tr_y - cur_metal.bl_y : temp.tr_y - cur_metal.bl_y;
+            int y_end = cur_metal.bl_y > temp.bl_y ? cur_metal.bl_y - cur_metal.bl_y : temp.bl_y - cur_metal.bl_y;
+
+            CalculateShieldingFringeCap(edge, cur_metal, temp, distance, y_start, y_end);
+            // if (remaining_length < 0) {
+            //     printf("[Error] error in calculating Fringe capcitance\n");
+            //     printf("[Error] error in calculating Fringe edge (smaller than 0)\n");
+            //     exit(1);
+            // }
+            if (remaining_length == 0)
+                break;
+        }
+        vector<int>().swap(edge);
     }
 }
 
@@ -812,12 +905,13 @@ int main(int argc, char **argv)
 
     AnalyzeDensity();
     
+    // initialize cap table (symmetric lower traingular matrix)
     long long total_map_size = total_metals * (total_metals + 1) / 2;
     for (long long i = 0; i < total_map_size; i++)
         cap[i] = 0;
     //CalculateAreaCapacitance();
     CalculateLateralCapacitance();
-    //CalculateFringeCapacitance();
+    CalculateFringeCapacitance();
 
     free_memory();
 
