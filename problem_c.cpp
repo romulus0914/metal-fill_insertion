@@ -625,8 +625,8 @@ void CalculateLateralCapacitance()
             // distance between two metals
             int distance = cur_metal.bl_x - temp.tr_x;
             // raw intersect length (without shielding)
-            int y_start = cur_metal.tr_y < temp.tr_y ? cur_metal.tr_y - cur_metal.bl_y : temp.tr_y - cur_metal.bl_y;
-            int y_end = cur_metal.bl_y > temp.bl_y ? cur_metal.bl_y - cur_metal.bl_y : temp.bl_y - cur_metal.bl_y;
+            int y_start = cur_metal.bl_y > temp.bl_y ? cur_metal.bl_y - cur_metal.bl_y : temp.bl_y - cur_metal.bl_y;
+            int y_end = cur_metal.tr_y < temp.tr_y ? cur_metal.tr_y - cur_metal.bl_y : temp.tr_y - cur_metal.bl_y;
 
             CalculateShieldingLateralCap(edge, cur_metal, temp, distance, y_start, y_end);
             // if (remaining_length < 0) {
@@ -647,8 +647,8 @@ void CalculateLateralCapacitance()
             // distance between two metals
             int distance = temp.bl_x - cur_metal.tr_x;
             // raw intersect length (without shielding)
-            int y_start = cur_metal.tr_y < temp.tr_y ? cur_metal.tr_y - cur_metal.bl_y : temp.tr_y - cur_metal.bl_y;
-            int y_end = cur_metal.bl_y > temp.bl_y ? cur_metal.bl_y - cur_metal.bl_y : temp.bl_y - cur_metal.bl_y;
+            int y_start = cur_metal.bl_y > temp.bl_y ? cur_metal.bl_y - cur_metal.bl_y : temp.bl_y - cur_metal.bl_y;
+            int y_end = cur_metal.tr_y < temp.tr_y ? cur_metal.tr_y - cur_metal.bl_y : temp.tr_y - cur_metal.bl_y;
 
             CalculateShieldingLateralCap(edge, cur_metal, temp, distance, y_start, y_end);
             // if (remaining_length < 0) {
@@ -665,11 +665,6 @@ void CalculateLateralCapacitance()
 
 int CalculateShieldingFringeCap(vector<int> &edge, const Layout &cur_metal, const Layout &temp, int distance, int start, int end)
 {
-    // no fringe cap between metals that are in same layer or projection overlapping
-    if ((cur_metal.layer == temp.layer) ||
-        !(temp.tr_x <= cur_metal.bl_x || temp.bl_x >= cur_metal.tr_x || temp.bl_y >= cur_metal.tr_y || temp.tr_y <= cur_metal.bl_y))
-        return 0;
-
     int length = 0;
     for (int i = start; i < end; i++) {
         if (edge[i] == 0) {
@@ -678,6 +673,11 @@ int CalculateShieldingFringeCap(vector<int> &edge, const Layout &cur_metal, cons
         }
     }
     
+    // no fringe cap between metals that are in same layer or projection overlapping but still cause shielding
+    if ((cur_metal.layer == temp.layer) ||
+        !(temp.tr_x <= cur_metal.bl_x || temp.bl_x >= cur_metal.tr_x || temp.bl_y >= cur_metal.tr_y || temp.tr_y <= cur_metal.bl_y))
+        return length;
+
     // fringe capacitance
     double fringe_cap = 0.0;
     if (length != 0)
@@ -831,8 +831,8 @@ void CalculateFringeCapacitance()
             // distance between two metals
             int distance = cur_metal.bl_x - temp.tr_x;
             // raw intersect length (without shielding)
-            int y_start = cur_metal.tr_y < temp.tr_y ? cur_metal.tr_y - cur_metal.bl_y : temp.tr_y - cur_metal.bl_y;
-            int y_end = cur_metal.bl_y > temp.bl_y ? cur_metal.bl_y - cur_metal.bl_y : temp.bl_y - cur_metal.bl_y;
+            int y_start = cur_metal.bl_y > temp.bl_y ? cur_metal.bl_y - cur_metal.bl_y : temp.bl_y - cur_metal.bl_y;
+            int y_end = cur_metal.tr_y < temp.tr_y ? cur_metal.tr_y - cur_metal.bl_y : temp.tr_y - cur_metal.bl_y;
 
             CalculateShieldingFringeCap(edge, cur_metal, temp, distance, y_start, y_end);
             // if (remaining_length < 0) {
@@ -851,8 +851,8 @@ void CalculateFringeCapacitance()
             // distance between two metals
             int distance = temp.bl_x - cur_metal.tr_x;
             // raw intersect length (without shielding)
-            int y_start = cur_metal.tr_y < temp.tr_y ? cur_metal.tr_y - cur_metal.bl_y : temp.tr_y - cur_metal.bl_y;
-            int y_end = cur_metal.bl_y > temp.bl_y ? cur_metal.bl_y - cur_metal.bl_y : temp.bl_y - cur_metal.bl_y;
+            int y_start = cur_metal.bl_y > temp.bl_y ? cur_metal.bl_y - cur_metal.bl_y : temp.bl_y - cur_metal.bl_y;
+            int y_end = cur_metal.tr_y < temp.tr_y ? cur_metal.tr_y - cur_metal.bl_y : temp.tr_y - cur_metal.bl_y;
 
             CalculateShieldingFringeCap(edge, cur_metal, temp, distance, y_start, y_end);
             // if (remaining_length < 0) {
