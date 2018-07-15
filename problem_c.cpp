@@ -407,7 +407,7 @@ void AnalyzeDensity()
 double CalculateCouplingCapacitance(string type,int layer1, int layer2, double param1, double param2)
 {
     if (type == "area") {
-        const AreaTable &atbl = area_table_map[area_tables[layer1 * total_layers + layer2]];
+        const AreaTable &atbl = area_table_map[area_tables[layer1 * total_layers + layer2 - 1]];
         int size = atbl.s.size();
         for (int i = 0; i < size; i++) {
             if (param1 < atbl.s[i]) {
@@ -421,7 +421,7 @@ double CalculateCouplingCapacitance(string type,int layer1, int layer2, double p
         return (atbl.a[last] * atbl.s[last] + atbl.b[last]) * atbl.s[last] * (param1 / atbl.s[last]);
     }
     else if (type == "lateral") {
-        const FringeTable &ltbl = fringe_table_map[fringe_tables[layer1 * total_layers + layer1]]; // layer1 == layer2
+        const FringeTable &ltbl = fringe_table_map[fringe_tables[layer1 * total_layers + layer1 - 1]]; // layer1 == layer2
         int size = ltbl.d.size();
         for (int i = 0; i < size; i++) {
             if (param1 < ltbl.d[i]) {
@@ -434,8 +434,8 @@ double CalculateCouplingCapacitance(string type,int layer1, int layer2, double p
         return 0.0;
     }
     else if (type == "fringe") {
-        const FringeTable &ftbl1 = fringe_table_map[fringe_tables[layer1 * total_layers + layer2]];
-        const FringeTable &ftbl2 = fringe_table_map[fringe_tables[layer2 * total_layers + layer1]];
+        const FringeTable &ftbl1 = fringe_table_map[fringe_tables[layer1 * total_layers + layer2 - 1]];
+        const FringeTable &ftbl2 = fringe_table_map[fringe_tables[layer2 * total_layers + layer1 - 1]];
         double coupling_cap = 0.0;
         int size = ftbl1.d.size();
         for (int i = 0; i < size; i++)
@@ -600,7 +600,7 @@ void CalculateLateralCapacitance()
         for (int metal_id : down) {
             const Layout &temp = layouts[metal_id];
             // distance between two metals
-            int distance = cur_metal.bl_y - temp.tr_y;
+            int distance = temp.bl_y - cur_metal.tr_y;
             // raw intersect length (without shielding)
             int x_start = cur_metal.bl_x > temp.bl_x ? cur_metal.bl_x - cur_metal.bl_x : temp.bl_x - cur_metal.bl_x;
             int x_end = cur_metal.tr_x < temp.tr_x ? cur_metal.tr_x - cur_metal.bl_x : temp.tr_x - cur_metal.bl_x;
@@ -839,8 +839,6 @@ void CalculateFringeCapacitance()
             //     printf("[Error] error in calculating Fringe capcitance\n");
             //     printf("[Error] error in calculating Fringe edge (smaller than 0)\n");
             //     exit(1);
-            // }
-            if (remaining_length == 0)
                 break;
         }
         edge.clear();
@@ -911,7 +909,7 @@ int main(int argc, char **argv)
         cap[i] = 0;
     //CalculateAreaCapacitance();
     CalculateLateralCapacitance();
-    CalculateFringeCapacitance();
+    //CalculateFringeCapacitance();
 
     free_memory();
 
