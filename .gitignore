@@ -1,2 +1,4 @@
 .vscode/
 iccad2018-contest-master/
+*.dSYM/
+problem_c
