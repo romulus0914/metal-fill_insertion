@@ -78,7 +78,7 @@ long long CalculateShieldingAreaCap(vector<int> &area, const Layout &cur_metal, 
     for (int y = bl_y; y < tr_y; y++) {
         for (int x = bl_x; x < tr_x; x++) {
             if (area[y * x_width + x] == 0) {
-                acutal_area++;
+                actual_area++;
                 area[y * x_width + x] = 1;
             }
         }
@@ -90,7 +90,7 @@ long long CalculateShieldingAreaCap(vector<int> &area, const Layout &cur_metal, 
         area_cap = CalculateCouplingCapacitance("area", cur_metal.layer, temp.layer, actual_area, actual_area);
     cap[IdToIndex(cur_metal.id - 1, temp.id - 1)] = area_cap;
     
-    return acutal_area;
+    return actual_area;
 }
 
 void CalculateAreaCapacitance()
