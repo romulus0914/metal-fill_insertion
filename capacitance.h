@@ -69,6 +69,30 @@ long long IdToIndex(int id1, int id2)
         return (1 + id1) * id1 / 2 + id2;
 }
 
+long long CalculateShieldingAreaCap(vector<int> &area, const Layout &cur_metal, const Layout &temp,
+                               int bl_x, int bl_y, int tr_x, int tr_y)
+{
+    long long actual_area = 0;
+    
+    int x_width = cur_metal.tr_x - cur_metal.bl_x;
+    for (int y = bl_y; y < tr_y; y++) {
+        for (int x = bl_x; x < tr_x; x++) {
+            if (area[y * x_width + x] == 0) {
+                acutal_area++;
+                area[y * x_width + x] = 1;
+            }
+        }
+    }
+    
+    // area capacitance
+    double area_cap = 0.0;
+    if (actual_area != 0)
+        area_cap = CalculateCouplingCapacitance("area", cur_metal.layer, temp.layer, actual_area, actual_area);
+    cap[IdToIndex(cur_metal.id - 1, temp.id - 1)] = area_cap;
+    
+    return acutal_area;
+}
+
 void CalculateAreaCapacitance()
 {
     for (int current_metal = 1; current_metal <= total_metals; current_metal++) {
@@ -104,6 +128,14 @@ void CalculateAreaCapacitance()
                     continue;
                 
                 // intersect coordinate
+                int bl_x = cur_metal.bl_x <= temp.bl_x ? temp.bl_x - cur_metal.bl_x : cur_metal.bl_x - cur_metal.bl_x;
+                int bl_y = cur_metal.bl_y <= temp.bl_y ? temp.bl_y - cur_metal.bl_y : cur_metal.bl_y - cur_metal.bl_y;
+                int tr_x = cur_metal.tr_x >= temp.tr_x ? temp.tr_x - cur_metal.bl_x : cur_metal.tr_x - cur_metal.bl_x;
+                int tr_y = cur_metal.tr_y >= temp.tr_y ? temp.tr_y - cur_metal.bl_y : cur_metal.tr_y - cur_metal.bl_y;
+                
+                remaining_area -= CalculateShieldingAreaCap(area, cur_metal, temp, bl_x, bl_y, tr_x, tr_y);
+                if (remaining_area == 0)
+                    break;
             }
         }
 
