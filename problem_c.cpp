@@ -347,6 +347,7 @@ void AnalyzeDensity()
                 qwindows[index].y_start = y * stride;
                 qwindows[index].y_end = (y + 1) * stride;
                 qwindows[index].violate_count = 0;
+                qwindows[index].hasCritical = 0;
             }
         }
 
@@ -371,6 +372,8 @@ void AnalyzeDensity()
 				    area = (x_end - x_start) * (y_end - y_start);
 				    qwindows[x * qwindow_y + y].area += area;
                     qwindows[x * qwindow_y + y].contribute_metals.emplace_back(temp.id);
+                    if (temp.isCritical)
+                        qwindows[x * qwindow_y + y].hasCritical++;
 			    }
 		    }
             if (++current_metal == total_metals + 1)
@@ -384,18 +387,147 @@ void AnalyzeDensity()
                 int index = x * window_y + y;
                 ws[index].area = qwindows[x * qwindow_y + y].area + qwindows[(x + 1) * qwindow_y + y].area +
                                  qwindows[x * qwindow_y + y + 1].area + qwindows[(x + 1) * qwindow_y + y + 1].area;
-                ws[index].density = (double)ws[x * window_y + y].area / w_area;
+                ws[index].density = (double)ws[index].area / w_area;
                 if (ws[index].density < rules[layer].min_density) {
                     qwindows[x * qwindow_y + y].violate_count++;
                     qwindows[(x + 1) * qwindow_y + y].violate_count++;
                     qwindows[x * qwindow_y + y + 1].violate_count++;
-                    qwindows[(x + 1) * qwindow_y + y + 1].violate_count++;
+                    qwindows[(x + 1) * qwindow_y + y + 1].violate_count++; 
                 }
             }
         }
-        quarter_windows.emplace_back(qwindows);
-        windows.emplace_back(ws);
+
+        quarter_windows[layer - 1] = qwindows;
+        windows[layer - 1] = ws;
     }
+}
+
+Rect FindSpaceSquare(const vector<int> &qw, int target_width, const int min_space)
+{
+    Rect rect = {.bl_x = -1, .bl_y = -1, .tr_x = -1, .tr_y = -1, .width_x = -1, .width_y = -1};
+    int temp_width = window_size;
+    target_width += min_space * 2;
+
+    int window_size_padding = window_size + 2;
+    vector<int> area(window_size_padding * window_size_padding, 0);
+
+    for (int y = 1; y <= window_size; y++) {
+        for (int x = 1; x <= window_size; x++) {
+            int idx = y * window_size_padding + x;
+            if (!qw[(y - 1) * window_size + x - 1])
+                area[idx] = min({area[idx - window_size_padding], area[idx - 1], area[idx - window_size_padding - 1]}) + 1;
+            if (area[idx] >= target_width && area[idx] < temp_width) {
+                rect.bl_x = x - area[idx]; // x - 1 - area[idx] + 1
+                rect.bl_y = y - area[idx]; // y - 1 - area[idx] + 1
+                rect.tr_x = x - 1;
+                rect.tr_y = y - 1;
+                temp_width = area[idx];
+            }
+        }
+    }
+
+    rect.bl_x += min_space;
+    rect.bl_y += min_space;
+    rect.tr_x -= min_space;
+    rect.tr_y -= min_space;
+    rect.width_x = rect.tr_x - rect.bl_x;
+    rect.width_y = rect.tr_y - rect.bl_y;
+    return rect;
+}
+
+// should find a space larger than target area, but the larger area depends on the space it found
+Rect FindSpace(const vector<int> &qw, long long target_area, const int min_width, const int max_width, const int min_space)
+{
+    Rect rect = {.bl_x = -1, .bl_y = -1, .tr_x = -1, .tr_y = -1, .width_x = -1, .width_y = -1};
+    long long temp_area = window_size * window_size;
+    int actual_min_width = min_width + 2 * min_space;
+
+    vector<int> wl(window_size, 0);
+    vector<int> wr(window_size, 0);
+    vector<int> h(window_size, 0);
+    vector<int> l(window_size, 0);
+    vector<int> r(window_size, 0);
+
+    for (int y = 0; y < window_size; y++) {
+        // search how far it can extend on left
+        for (int x = 0; x < window_size; x++) {
+            if (!qw[y * window_size + x]) {
+                if (x == 0)
+                    wl[0] = 1;
+                else
+                    wl[x] = wl[x - 1] + 1;
+            }
+            else
+                wl[x] = 0;
+        }
+        // search how far it can extend on right
+        for (int x = window_size - 1; x >= 0; x--) {
+            if (!qw[y * window_size + x]) {
+                if (x == window_size - 1)
+                    wr[window_size - 1] = 1;
+                else
+                    wr[x] = wr[x + 1] + 1;
+            }
+            else
+                wr[x] = 0;
+        }
+        // search how far it can extend on top
+        for (int x = 0; x < window_size; x++) {
+            if (!qw[y * window_size + x])
+                h[x]++;
+            else
+                h[x] = 0;
+        }
+        // search how far it can extend on left after reaching top
+        for (int x = 0; x < window_size; x++) {
+            if (l[x] == 0)
+                l[x] = wl[x];
+            else
+                l[x] = min(l[x], wl[x]);
+        }
+        // search how far it can extend on right after reaching top
+        for (int x = 0; x < window_size; x++) {
+            if (r[x] == 0)
+                r[x] = wr[x];
+            else
+                r[x] = min(r[x], wr[x]);
+        }
+
+        // search for the smallest matching area
+        for (int x = 0; x < window_size; x++) {
+            int width1 = l[x] + r[x] - 1;
+            int width2 = h[x];
+            if (width1 >= actual_min_width && width1 <= max_width && width2 >= actual_min_width && width2 <= max_width) {
+                long long area = (width1 - 2 * min_space) * (width2 - 2 * min_space);
+                if (area >= target_area && area < temp_area) {
+                    rect.bl_x = x - l[x] + 1;
+                    rect.bl_y = y - h[x] + 1;
+                    rect.tr_x = x + r[x] - 1;
+                    rect.tr_y = y;
+                    temp_area = area;
+                }
+            }
+        }
+    }
+
+    rect.bl_x += min_space;
+    rect.bl_y += min_space;
+    rect.tr_x -= min_space;
+    rect.tr_y -= min_space;
+    rect.width_x = rect.tr_x - rect.bl_x;
+    rect.width_y = rect.tr_y - rect.bl_y;
+    return rect;
+}
+
+void FillToWindow(vector<int> &qw, Rect rect)
+{
+    for (int y = rect.bl_y; y <= rect.tr_y; y++)
+        for (int x = rect.bl_x; x <= rect.tr_x; x++)
+            qw[y * window_size + x] = 1;
+}
+
+void FillMetalRandomly()
+{
 }
 
 void free_memory()
@@ -432,17 +564,21 @@ int main(int argc, char **argv)
     ReadProcess();
     ReadRule();
 
+    windows.resize(total_layers);
+    quarter_windows.resize(total_layers);
     AnalyzeDensity();
     
     // initialize cap table (symmetric lower traingular matrix)
-    long long total_map_size = total_metals * (total_metals + 1) / 2;
-    for (long long i = 0; i < total_map_size; i++)
-        cap[i] = 0;
-    CalculateAreaCapacitance();
-    //CalculateLateralCapacitance();
-    //CalculateFringeCapacitance();
+    // long long total_map_size = total_metals * (total_metals + 1) / 2;
+    // for (long long i = 0; i < total_map_size; i++)
+    //     cap[i] = 0;
+    // CalculateAreaCapacitance();
+    // CalculateLateralCapacitance();
+    // CalculateFringeCapacitance();
 
-    free_memory();
+    FillMetalRandomly();
+
+    // free_memory();
 
     return 0;
 }
