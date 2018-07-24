@@ -6,14 +6,14 @@
 #include <unordered_set>
 #include <unordered_map>
 
-typedef struct chip_boundary {
+typedef struct rect {
     int bl_x;
     int bl_y;
     int tr_x;
     int tr_y;
     int width_x;
     int width_y;
-} ChipBoundary;
+} Rect;
 
 typedef struct layout {
     int id;
@@ -70,6 +70,7 @@ typedef struct quarter_window {
     int y_end;
     std::vector<int> contribute_metals;
     int violate_count;
+    int hasCritical;
 } QuarterWindow;
 
 typedef struct window {
@@ -103,12 +104,14 @@ std::unordered_set<int> critical_nets;
 int power_net, ground_net;
 
 // circuit file
-ChipBoundary cb;
+Rect cb; // chip boundary
 std::vector<Layout> layouts;
 
 // process file
 int window_size = 10000;
 int stride;
+
+// total windows and quarter windows
 int window_x, window_y;
 int qwindow_x, qwindow_y;
 
