@@ -83,10 +83,11 @@ long long CalculateShieldingAreaCap(vector<int> &area, const Layout &cur_metal, 
             }
         }
     }
-    
+
     // area capacitance
     double area_cap = 0.0;
-    if (actual_area != 0)
+    // metals with same net id do not have coupling capacitance (but still shield?)
+    if (cur_metal.net_id != temp.net_id && actual_area != 0)
         area_cap = CalculateCouplingCapacitance("area", cur_metal.layer, temp.layer, actual_area, actual_area);
     cap[IdToIndex(cur_metal.id - 1, temp.id - 1)] = area_cap;
     
@@ -123,6 +124,8 @@ void CalculateAreaCapacitance()
             vector<int> area(remaining_area, 0);
             for (int metal_id : candidate_metals) {
                 const Layout &temp = layouts[metal_id];
+
+                // metals that do not intersect
                 if (temp.tr_x <= cur_metal.bl_x || temp.bl_x >= cur_metal.tr_x ||
                     temp.bl_y >= cur_metal.tr_y || temp.tr_y <= cur_metal.bl_y)
                     continue;
@@ -160,7 +163,8 @@ int CalculateShieldingLateralCap(vector<int> &edge, const Layout &cur_metal, con
     
     // lateral capacitance
     double lateral_cap = 0.0;
-    if (length != 0)
+    // metals with same net id do not have coupling capacitance (but still shield?)
+    if (cur_metal.net_id != temp.net_id && length != 0)
         lateral_cap = CalculateCouplingCapacitance("lateral", cur_metal.layer, temp.layer, distance, length);
     cap[IdToIndex(cur_metal.id - 1, temp.id - 1)] = lateral_cap;
 
@@ -215,10 +219,12 @@ void CalculateLateralCapacitance()
         vector<int> up, down, left, right;
         for (int metal_id : candidate_metals) {
             const Layout &temp = layouts[metal_id];
+
             // determine if they can't see each other then skip (haven't consider shielding)
             if ((temp.tr_x <= cur_metal.bl_x || temp.bl_x >= cur_metal.tr_x) &&
                 (temp.bl_y >= cur_metal.tr_y || temp.tr_y <= cur_metal.bl_y))
                 continue;
+
             // determine in which direction
             if (temp.bl_y >=  cur_metal.tr_y)
                 up.emplace_back(metal_id);
@@ -361,7 +367,8 @@ int CalculateShieldingFringeCap(vector<int> &edge, const Layout &cur_metal, cons
 
     // fringe capacitance
     double fringe_cap = 0.0;
-    if (length != 0)
+    // metals with same net id do not have coupling capacitance (but still shield?)
+    if (cur_metal.net_id != temp.net_id && length != 0)
         fringe_cap = CalculateCouplingCapacitance("fringe", cur_metal.layer, temp.layer, distance, length);
     cap[IdToIndex(cur_metal.id - 1, temp.id - 1)] = fringe_cap;
 
@@ -408,10 +415,12 @@ void CalculateFringeCapacitance()
         vector<int> up, down, left, right;
         for (int metal_id : candidate_metals) {
             const Layout &temp = layouts[metal_id];
+
             // determine if they can't see each other then skip (haven't consider shielding)
             if ((temp.tr_x <= cur_metal.bl_x || temp.bl_x >= cur_metal.tr_x) &&
                 (temp.bl_y >= cur_metal.tr_y || temp.tr_y <= cur_metal.bl_y))
                 continue;
+
             // determine in which direction
             // one metal may belong to more than one direction because projection ovelapping from different layers
             if (temp.tr_y > cur_metal.tr_y)
