@@ -313,9 +313,12 @@ void ReadRule()
 
     Rule r;
     string str;
+    long long w_area = (long long)window_size * window_size;
     while (file >> r.layer >> str >> r.min_width >> r.min_space >> r.max_fill_width >> 
-           r.min_density >> r.max_density)
+           r.min_density >> r.max_density) {
+        min_area_per_window.emplace_back(w_area * r.min_density);
         rules.emplace_back(r);
+    }
 
     file.close();
 }
@@ -323,8 +326,8 @@ void ReadRule()
 void AnalyzeDensity()
 {
     stride = window_size / 2;
-    long long w_area = window_size * window_size; 
-    long long qw_area = stride * stride;
+    long long w_area = (long long)window_size * window_size; 
+    long long qw_area = (long long)stride * stride;
     // # windows
     window_x = cb.width_x / window_size * 2 - 1;
     window_y = cb.width_y / window_size * 2 - 1;
@@ -382,17 +385,33 @@ void AnalyzeDensity()
         }
 
         vector<Window> ws(window_x * window_y);
+        long long min_area = min_area_per_window[layer - 1];
+        double min_density = rules[layer - 1].min_density;
         for (int x = 0; x < window_x; x++) {
             for (int y = 0; y < window_y; y++) {
+                // window index
                 int index = x * window_y + y;
-                ws[index].area = qwindows[x * qwindow_y + y].area + qwindows[(x + 1) * qwindow_y + y].area +
-                                 qwindows[x * qwindow_y + y + 1].area + qwindows[(x + 1) * qwindow_y + y + 1].area;
+                // quarter window index
+                int q_index = x * qwindow_y + y;
+
+                ws[index].index = index;
+                ws[index].area = qwindows[q_index].area + qwindows[q_index + qwindow_y].area +
+                                 qwindows[q_index + 1].area + qwindows[q_index + qwindow_y + 1].area;
+                ws[index].area_insufficient = 0;
                 ws[index].density = (double)ws[index].area / w_area;
-                if (ws[index].density < rules[layer].min_density) {
-                    qwindows[x * qwindow_y + y].violate_count++;
-                    qwindows[(x + 1) * qwindow_y + y].violate_count++;
-                    qwindows[x * qwindow_y + y + 1].violate_count++;
-                    qwindows[(x + 1) * qwindow_y + y + 1].violate_count++; 
+
+                // remember which window will be affected
+                qwindows[q_index].affected_window.emplace_back(index);
+                qwindows[q_index + qwindow_y].affected_window.emplace_back(index);
+                qwindows[q_index + 1].affected_window.emplace_back(index);
+                qwindows[q_index + qwindow_y + 1].affected_window.emplace_back(index);
+
+                if (ws[index].density < min_density) {
+                    ws[index].area_insufficient = min_area - ws[index].area;
+                    qwindows[q_index].violate_count++;
+                    qwindows[q_index + qwindow_y].violate_count++;
+                    qwindows[q_index + 1].violate_count++;
+                    qwindows[q_index + qwindow_y + 1].violate_count++; 
                 }
             }
         }
@@ -402,56 +421,59 @@ void AnalyzeDensity()
     }
 }
 
-Rect FindSpaceSquare(const vector<int> &qw, int target_width, const int min_space)
+// Rect FindSpaceSquare(const vector<int> &qw, const int target_width, const int min_space)
+// {
+//     Rect rt = {.bl_x = -1, .bl_y = -1, .tr_x = -1, .tr_y = -1, .width_x = -1, .width_y = -1};
+//     int temp_width = stride;
+
+//     int stride_padding = stride + 2;
+//     vector<int> area(stride_padding * stride_padding, 0);
+
+//     for (int y = 1; y <= stride; y++) {
+//         for (int x = 1; x <= stride; x++) {
+//             int idx = y * stride_padding + x;
+//             if (!qw[(y - 1) * stride + x - 1])
+//                 area[idx] = min({area[idx - stride_padding], area[idx - 1], area[idx - stride_padding - 1]}) + 1;
+//             if (area[idx] - 2 * min_space >= target_width && area[idx] < temp_width) {
+//                 rt.bl_x = x - area[idx]; // x - 1 - area[idx] + 1
+//                 rt.bl_y = y - area[idx]; // y - 1 - area[idx] + 1
+//                 rt.tr_x = x - 1;
+//                 rt.tr_y = y - 1;
+//                 temp_width = area[idx];
+//             }
+//         }
+//     }
+
+//     rt.bl_x += min_space;
+//     rt.bl_y += min_space;
+//     rt.tr_x -= min_space;
+//     rt.tr_y -= min_space;
+//     rt.width_x = rt.tr_x - rt.bl_x;
+//     rt.width_y = rt.tr_y - rt.bl_y;
+//     return rt;
+// }
+
+// should find a space larger than target area, but the larger area it should be depends on the space it found
+// if target_area == 0, find max space
+Rect FindSpace(const vector<int> &qw, const long long target_area,
+               const int min_width, const int max_width, const int min_space)
 {
-    Rect rect = {.bl_x = -1, .bl_y = -1, .tr_x = -1, .tr_y = -1, .width_x = -1, .width_y = -1};
-    int temp_width = window_size;
-    target_width += min_space * 2;
+    Rect rt = {.bl_x = -1, .bl_y = -1, .tr_x = -1, .tr_y = -1, .width_x = -1, .width_y = -1};
+    long long max_area = 0;
+    long long temp_area = (long long)stride * stride;
+    const int actual_min_width = min_width + 2 * min_space;
+    const int actual_max_width = max_width + 2 * min_space;
 
-    int window_size_padding = window_size + 2;
-    vector<int> area(window_size_padding * window_size_padding, 0);
+    vector<int> wl(stride, 0);
+    vector<int> wr(stride, 0);
+    vector<int> h(stride, 0);
+    vector<int> l(stride, 0);
+    vector<int> r(stride, 0);
 
-    for (int y = 1; y <= window_size; y++) {
-        for (int x = 1; x <= window_size; x++) {
-            int idx = y * window_size_padding + x;
-            if (!qw[(y - 1) * window_size + x - 1])
-                area[idx] = min({area[idx - window_size_padding], area[idx - 1], area[idx - window_size_padding - 1]}) + 1;
-            if (area[idx] >= target_width && area[idx] < temp_width) {
-                rect.bl_x = x - area[idx]; // x - 1 - area[idx] + 1
-                rect.bl_y = y - area[idx]; // y - 1 - area[idx] + 1
-                rect.tr_x = x - 1;
-                rect.tr_y = y - 1;
-                temp_width = area[idx];
-            }
-        }
-    }
-
-    rect.bl_x += min_space;
-    rect.bl_y += min_space;
-    rect.tr_x -= min_space;
-    rect.tr_y -= min_space;
-    rect.width_x = rect.tr_x - rect.bl_x;
-    rect.width_y = rect.tr_y - rect.bl_y;
-    return rect;
-}
-
-// should find a space larger than target area, but the larger area depends on the space it found
-Rect FindSpace(const vector<int> &qw, long long target_area, const int min_width, const int max_width, const int min_space)
-{
-    Rect rect = {.bl_x = -1, .bl_y = -1, .tr_x = -1, .tr_y = -1, .width_x = -1, .width_y = -1};
-    long long temp_area = window_size * window_size;
-    int actual_min_width = min_width + 2 * min_space;
-
-    vector<int> wl(window_size, 0);
-    vector<int> wr(window_size, 0);
-    vector<int> h(window_size, 0);
-    vector<int> l(window_size, 0);
-    vector<int> r(window_size, 0);
-
-    for (int y = 0; y < window_size; y++) {
+    for (int y = 0; y < stride; y++) {
         // search how far it can extend on left
-        for (int x = 0; x < window_size; x++) {
-            if (!qw[y * window_size + x]) {
+        for (int x = 0; x < stride; x++) {
+            if (!qw[y * stride + x]) {
                 if (x == 0)
                     wl[0] = 1;
                 else
@@ -461,10 +483,10 @@ Rect FindSpace(const vector<int> &qw, long long target_area, const int min_width
                 wl[x] = 0;
         }
         // search how far it can extend on right
-        for (int x = window_size - 1; x >= 0; x--) {
-            if (!qw[y * window_size + x]) {
-                if (x == window_size - 1)
-                    wr[window_size - 1] = 1;
+        for (int x = stride - 1; x >= 0; x--) {
+            if (!qw[y * stride + x]) {
+                if (x == stride - 1)
+                    wr[stride - 1] = 1;
                 else
                     wr[x] = wr[x + 1] + 1;
             }
@@ -472,21 +494,21 @@ Rect FindSpace(const vector<int> &qw, long long target_area, const int min_width
                 wr[x] = 0;
         }
         // search how far it can extend on top
-        for (int x = 0; x < window_size; x++) {
-            if (!qw[y * window_size + x])
+        for (int x = 0; x < stride; x++) {
+            if (!qw[y * stride + x])
                 h[x]++;
             else
                 h[x] = 0;
         }
         // search how far it can extend on left after reaching top
-        for (int x = 0; x < window_size; x++) {
+        for (int x = 0; x < stride; x++) {
             if (l[x] == 0)
                 l[x] = wl[x];
             else
                 l[x] = min(l[x], wl[x]);
         }
         // search how far it can extend on right after reaching top
-        for (int x = 0; x < window_size; x++) {
+        for (int x = 0; x < stride; x++) {
             if (r[x] == 0)
                 r[x] = wr[x];
             else
@@ -494,40 +516,176 @@ Rect FindSpace(const vector<int> &qw, long long target_area, const int min_width
         }
 
         // search for the smallest matching area
-        for (int x = 0; x < window_size; x++) {
+        for (int x = 0; x < stride; x++) {
             int width1 = l[x] + r[x] - 1;
             int width2 = h[x];
-            if (width1 >= actual_min_width && width1 <= max_width && width2 >= actual_min_width && width2 <= max_width) {
-                long long area = (width1 - 2 * min_space) * (width2 - 2 * min_space);
-                if (area >= target_area && area < temp_area) {
-                    rect.bl_x = x - l[x] + 1;
-                    rect.bl_y = y - h[x] + 1;
-                    rect.tr_x = x + r[x] - 1;
-                    rect.tr_y = y;
-                    temp_area = area;
+            if (width1 >= actual_min_width && width1 <= actual_max_width &&
+                width2 >= actual_min_width && width2 <= actual_max_width) {
+                long long area = (long long)(width1 - 2 * min_space) * (width2 - 2 * min_space);
+                if (target_area > 0) {
+                    if (area >= target_area && area < temp_area) {
+                        rt.bl_x = x - l[x] + 1;
+                        rt.bl_y = y - h[x] + 1;
+                        rt.tr_x = x + r[x] - 1;
+                        rt.tr_y = y;
+                        temp_area = area;
+                    }
+                }
+                else {
+                    if (area > max_area) {
+                        rt.bl_x = x - l[x] + 1;
+                        rt.bl_y = y - h[x] + 1;
+                        rt.tr_x = x + r[x] - 1;
+                        rt.tr_y = y;
+                        max_area = area;
+                    }
                 }
             }
         }
     }
 
-    rect.bl_x += min_space;
-    rect.bl_y += min_space;
-    rect.tr_x -= min_space;
-    rect.tr_y -= min_space;
-    rect.width_x = rect.tr_x - rect.bl_x;
-    rect.width_y = rect.tr_y - rect.bl_y;
-    return rect;
+    rt.bl_x += min_space;
+    rt.bl_y += min_space;
+    rt.tr_x -= min_space;
+    rt.tr_y -= min_space;
+    rt.width_x = rt.tr_x - rt.bl_x;
+    rt.width_y = rt.tr_y - rt.bl_y;
+    return rt;
 }
 
-void FillToWindow(vector<int> &qw, Rect rect)
+void FillWindowByRect(vector<int> &qw, const Rect rt)
 {
-    for (int y = rect.bl_y; y <= rect.tr_y; y++)
-        for (int x = rect.bl_x; x <= rect.tr_x; x++)
-            qw[y * window_size + x] = 1;
+    for (int y = rt.bl_y; y <= rt.tr_y; y++)
+        for (int x = rt.bl_x; x <= rt.tr_x; x++)
+            qw[y * stride + x] = 1;
+}
+
+void FillWindowById(vector<int> &qw, const int id, const int x_offset, const int y_offset)
+{
+    const Layout &temp = layouts[id];
+    int x_start = temp.bl_x - x_offset;
+    int x_end = temp.tr_x - x_offset;
+    int y_start = temp.bl_y - y_offset;
+    int y_end = temp.tr_y - y_offset;
+
+    for (int y = y_start; y < y_end; y++)
+        for (int x = x_start; x < x_end; x++)
+            qw[y * stride + x] = 1;
+}
+
+int AddMetalFill(const Rect rt, const int layer, const int x_offset, const  int y_offset)
+{
+    Layout metal_fill;
+    metal_fill.id = ++total_metals;
+    // chessboard coordinate to 2D coordinate (need to + 1?)
+    metal_fill.bl_x = rt.bl_x + x_offset + 1;
+    metal_fill.bl_y = rt.bl_y + y_offset + 1;
+    metal_fill.tr_x = rt.tr_x + x_offset + 1;
+    metal_fill.tr_y = rt.tr_y + y_offset + 1;
+    metal_fill.net_id = 0;
+    metal_fill.layer = layer;
+    metal_fill.type = 3; // Fill
+    metal_fill.isCritical = false;
+
+    layouts.emplace_back(metal_fill);
+    total_fills++;
+
+    return metal_fill.id;
+}
+
+long long UpdateWindows(vector<Window> &ws, QuarterWindow &qw, const Rect rt, const int layer)
+{
+    int new_id = AddMetalFill(rt, layer, qw.x_start, qw.y_start);
+    long long metal_fill_area = (long long)rt.width_x * rt.width_y;
+
+    qw.area += metal_fill_area;
+    qw.contribute_metals.emplace_back(new_id);
+
+    // update affected windows
+    for (int w_idx : qw.affected_window) {
+        ws[w_idx].area += metal_fill_area;
+        ws[w_idx].area_insufficient -= metal_fill_area;
+    }
+
+    return metal_fill_area;
 }
 
 void FillMetalRandomly()
 {
+    for (int layer = 1; layer <= total_layers; layer++) {
+        vector<Window> &ws = windows[layer - 1];
+        vector<QuarterWindow> &qws = quarter_windows[layer - 1];
+        const Rule &r = rules[layer - 1];
+
+        while(1) {
+            // find the largest insufficient area window
+            int max_insuff_idx;
+            long long max_insuff_area = 0;
+            for (Window w : ws) {
+                if (w.area_insufficient > max_insuff_area) {
+                    max_insuff_idx = w.index;
+                    max_insuff_area = w.area_insufficient;
+                }
+            }
+            // all fulfill min density
+            if (max_insuff_area == 0)
+                break;
+
+            // window x, y index for calculating quarter window x, y index
+            int x_idx = max_insuff_idx / window_y;
+            int y_idx = max_insuff_idx % window_y;
+            // included quarter window
+            vector<int> qw_idx{x_idx * qwindow_y + y_idx, x_idx * qwindow_y + y_idx + 1,
+                            (x_idx + 1) * qwindow_y + y_idx, (x_idx + 1) * qwindow_y + y_idx + 1};
+            // insertion sort by # included critical nets
+            // start metal fill in quarter windows with less critical nets
+            for (int i = 1; i < 4; i++) {
+                int temp = qw_idx[i];
+                int j = i - 1;
+                while (j >= 0 && qws[qw_idx[j]].hasCritical > qws[temp].hasCritical) {
+                    qw_idx[j + 1] = qw_idx[j];
+                    j--;
+                }
+                qw_idx[j + 1] = temp;
+            }
+
+            // fill metal in sorted quarter window order
+            for (int current_qw : qw_idx) {
+                vector<int> qw_area(stride * stride, 0);
+                QuarterWindow &qw = qws[current_qw];
+
+                // occupied space by original metals
+                for (int metal_id : qw.contribute_metals)
+                    FillWindowById(qw_area, metal_id, qw.x_start, qw.y_start);
+
+                // try to fill with max space in quarter window
+                // because of constraint in function, max space will be no larger than max_width * max_width
+                long long target_area = 0;
+                while (max_insuff_area > 0) {
+                    Rect metal_fill = FindSpace(qw_area, target_area, r.min_width, r.max_fill_width, r.min_space);
+                    if (metal_fill.bl_x == -1)
+                        break;
+
+                    if ((long long)metal_fill.width_x * metal_fill.width_y > max_insuff_area)
+                        target_area = max_insuff_area;
+                    else {
+                        FillWindowByRect(qw_area, metal_fill);
+                        max_insuff_area -= UpdateWindows(ws, qw, metal_fill, layer);
+                    }
+                }
+
+                // no more insufficient area to fill
+                if (max_insuff_area <= 0)
+                    break;
+            }
+
+            // error if after fill in four quarter windows, there is still insufficient area
+            if (max_insuff_area > 0) {
+                printf("[Error] error in dummy metal fill\n");
+                exit(1);
+            }
+        }
+    }
 }
 
 void free_memory()
