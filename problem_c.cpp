@@ -635,7 +635,7 @@ void FillMetalRandomly()
 
         while(1) {
             // find the largest insufficient area window
-            int max_insuff_idx;
+            int max_insuff_idx = -1;
             long long max_insuff_area = 0;
             for (Window w : ws) {
                 if (w.area_insufficient > max_insuff_area) {
@@ -684,7 +684,7 @@ void FillMetalRandomly()
                         break;
 
                     long long metal_fill_area = (long long)metal_fill.width_x * metal_fill.width_y;
-                    if (metal_fill_area != min_metal_fill && metal_fill_area > max_insuff_area)
+                    if (metal_fill_area > max_insuff_area && target_area == 0)
                         target_area = max_insuff_area;
                     else {
                         FillWindowByRect(qw_area, metal_fill);
