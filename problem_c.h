@@ -65,10 +65,10 @@ typedef struct rule {
 typedef struct quarter_window {
     long long area;
     // coordinate
-    int x_start;
-    int x_end;
-    int y_start;
-    int y_end;
+    int bl_x;
+    int bl_y;
+    int tr_x;
+    int tr_y;
     std::vector<int> contribute_metals;
     int violate_count;
     int hasCritical;

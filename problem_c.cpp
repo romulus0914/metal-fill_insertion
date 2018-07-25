@@ -345,10 +345,10 @@ void AnalyzeDensity()
             for (int y = 0; y < qwindow_y; y++) {
                 int index = x * qwindow_y + y;
                 qwindows[index].area = 0;
-                qwindows[index].x_start = start;
-                qwindows[index].x_end = end;
-                qwindows[index].y_start = y * stride;
-                qwindows[index].y_end = (y + 1) * stride;
+                qwindows[index].bl_x = start;
+                qwindows[index].tr_x = end;
+                qwindows[index].bl_y = y * stride;
+                qwindows[index].tr_y = (y + 1) * stride;
                 qwindows[index].violate_count = 0;
                 qwindows[index].hasCritical = 0;
             }
@@ -455,7 +455,7 @@ void AnalyzeDensity()
 
 // should find a space larger than target area, but the larger area it should be depends on the space it found
 // if target_area == 0, find max space
-Rect FindSpace(const vector<int> &qw, const long long target_area,
+Rect FindSpace(const vector<int> &qw, const long long target_area, const long long min_metal_fill,
                const int min_width, const int max_width, const int min_space)
 {
     Rect rt = {.bl_x = -1, .bl_y = -1, .tr_x = -1, .tr_y = -1, .width_x = -1, .width_y = -1};
@@ -519,24 +519,24 @@ Rect FindSpace(const vector<int> &qw, const long long target_area,
         for (int x = 0; x < stride; x++) {
             int width1 = l[x] + r[x] - 1;
             int width2 = h[x];
-            if (width1 >= actual_min_width && width1 <= actual_max_width &&
-                width2 >= actual_min_width && width2 <= actual_max_width) {
+            // no constraint on max_width because empty space may always be larger than max_width
+            if (width1 >= actual_min_width && width2 >= actual_min_width) {
                 long long area = (long long)(width1 - 2 * min_space) * (width2 - 2 * min_space);
                 if (target_area > 0) {
                     if (area >= target_area && area < temp_area) {
-                        rt.bl_x = x - l[x] + 1;
-                        rt.bl_y = y - h[x] + 1;
-                        rt.tr_x = x + r[x] - 1;
-                        rt.tr_y = y;
+                        rt.bl_x = x - l[x] + 1 + min_space;
+                        rt.bl_y = y - h[x] + 1 + min_space;
+                        rt.tr_x = x + r[x] - 1 - min_space;
+                        rt.tr_y = y - min_space;
                         temp_area = area;
                     }
                 }
                 else {
                     if (area > max_area) {
-                        rt.bl_x = x - l[x] + 1;
-                        rt.bl_y = y - h[x] + 1;
-                        rt.tr_x = x + r[x] - 1;
-                        rt.tr_y = y;
+                        rt.bl_x = x - l[x] + 1 + min_space;
+                        rt.bl_y = y - h[x] + 1 + min_space;
+                        rt.tr_x = x + r[x] - 1 - min_space;
+                        rt.tr_y = y - min_space;
                         max_area = area;
                     }
                 }
@@ -544,33 +544,48 @@ Rect FindSpace(const vector<int> &qw, const long long target_area,
         }
     }
 
-    rt.bl_x += min_space;
-    rt.bl_y += min_space;
-    rt.tr_x -= min_space;
-    rt.tr_y -= min_space;
     rt.width_x = rt.tr_x - rt.bl_x;
     rt.width_y = rt.tr_y - rt.bl_y;
+    // if target area smaller than min_width * width, than extand to it
+    if (rt.bl_x != -1 && target_area != 0 && target_area < min_metal_fill) {
+        rt.tr_x = rt.bl_x + min_width;
+        rt.tr_y = rt.bl_y + min_width;
+        rt.width_x = min_width;
+        rt.width_y = min_width;
+    }
+    else {
+        // if can only find width larger than max_width, than shrink to max_width
+        if (rt.width_x > max_width) {
+            rt.tr_x = rt.bl_x + max_width;
+            rt.width_x = max_width;
+        }
+        if (rt.width_y > max_width) {
+            rt.tr_y = rt.bl_y + max_width;
+            rt.width_y = max_width;
+        }
+    }
+
     return rt;
 }
 
-void FillWindowByRect(vector<int> &qw, const Rect rt)
+void FillWindowByRect(vector<int> &qw_area, const Rect rt)
 {
     for (int y = rt.bl_y; y <= rt.tr_y; y++)
         for (int x = rt.bl_x; x <= rt.tr_x; x++)
-            qw[y * stride + x] = 1;
+            qw_area[y * stride + x] = 1;
 }
 
-void FillWindowById(vector<int> &qw, const int id, const int x_offset, const int y_offset)
+void FillWindowById(vector<int> &qw_area, const QuarterWindow &qw, const int id)
 {
     const Layout &temp = layouts[id];
-    int x_start = temp.bl_x - x_offset;
-    int x_end = temp.tr_x - x_offset;
-    int y_start = temp.bl_y - y_offset;
-    int y_end = temp.tr_y - y_offset;
+    int x_start = temp.bl_x < qw.bl_x ? 0 : temp.bl_x - qw.bl_x;
+    int x_end = temp.tr_x > qw.tr_x ? stride : temp.tr_x - qw.bl_x;
+    int y_start = temp.bl_y < qw.bl_y ? 0 : temp.bl_y - qw.bl_y;
+    int y_end = temp.tr_y > qw.tr_y ? stride : temp.tr_y - qw.bl_y;
 
     for (int y = y_start; y < y_end; y++)
         for (int x = x_start; x < x_end; x++)
-            qw[y * stride + x] = 1;
+            qw_area[y * stride + x] = 1;
 }
 
 int AddMetalFill(const Rect rt, const int layer, const int x_offset, const  int y_offset)
@@ -595,7 +610,7 @@ int AddMetalFill(const Rect rt, const int layer, const int x_offset, const  int 
 
 long long UpdateWindows(vector<Window> &ws, QuarterWindow &qw, const Rect rt, const int layer)
 {
-    int new_id = AddMetalFill(rt, layer, qw.x_start, qw.y_start);
+    int new_id = AddMetalFill(rt, layer, qw.bl_x, qw.bl_y);
     long long metal_fill_area = (long long)rt.width_x * rt.width_y;
 
     qw.area += metal_fill_area;
@@ -616,6 +631,7 @@ void FillMetalRandomly()
         vector<Window> &ws = windows[layer - 1];
         vector<QuarterWindow> &qws = quarter_windows[layer - 1];
         const Rule &r = rules[layer - 1];
+        long long min_metal_fill = r.min_width * r.min_width;
 
         while(1) {
             // find the largest insufficient area window
@@ -656,17 +672,19 @@ void FillMetalRandomly()
 
                 // occupied space by original metals
                 for (int metal_id : qw.contribute_metals)
-                    FillWindowById(qw_area, metal_id, qw.x_start, qw.y_start);
+                    FillWindowById(qw_area, qw, metal_id);
 
                 // try to fill with max space in quarter window
                 // because of constraint in function, max space will be no larger than max_width * max_width
                 long long target_area = 0;
                 while (max_insuff_area > 0) {
-                    Rect metal_fill = FindSpace(qw_area, target_area, r.min_width, r.max_fill_width, r.min_space);
+                    Rect metal_fill = FindSpace(qw_area, target_area, min_metal_fill, 
+                                                r.min_width, r.max_fill_width, r.min_space);
                     if (metal_fill.bl_x == -1)
                         break;
 
-                    if ((long long)metal_fill.width_x * metal_fill.width_y > max_insuff_area)
+                    long long metal_fill_area = (long long)metal_fill.width_x * metal_fill.width_y;
+                    if (metal_fill_area != min_metal_fill && metal_fill_area > max_insuff_area)
                         target_area = max_insuff_area;
                     else {
                         FillWindowByRect(qw_area, metal_fill);
@@ -686,6 +704,30 @@ void FillMetalRandomly()
             }
         }
     }
+}
+
+void OutputLayout()
+{
+    ofstream file(path + "circuit_metal-fill.cut");
+
+    file << cb.bl_x << " " << cb.bl_y << " " << cb.tr_x << " " << cb.tr_y << "; chip boundary\n";
+
+    for (int i = 1; i <= total_metals; i++) {
+        Layout &temp = layouts[i];
+        file << temp.id << " " << temp.bl_x + cb.bl_x << " " << temp.bl_y + cb.bl_y << " "
+             << temp.tr_x + cb.bl_x << " " << temp.tr_y + cb.bl_y << " "
+             << temp.net_id << " " << temp.layer << " ";
+        if (temp.type == 0)
+            file << "Drv_Pin\n";
+        else if (temp.type == 1)
+            file << "Normal\n";
+        else if (temp.type == 2)
+            file << "Load_Pin\n";
+        else if (temp.type == 3)
+            file << "Fill\n";
+    }
+
+    file.close();
 }
 
 void free_memory()
@@ -735,6 +777,8 @@ int main(int argc, char **argv)
     // CalculateFringeCapacitance();
 
     FillMetalRandomly();
+
+    OutputLayout();
 
     // free_memory();
 
