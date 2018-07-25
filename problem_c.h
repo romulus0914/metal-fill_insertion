@@ -64,6 +64,7 @@ typedef struct rule {
 
 typedef struct quarter_window {
     long long area;
+    // coordinate
     int x_start;
     int x_end;
     int y_start;
@@ -71,10 +72,13 @@ typedef struct quarter_window {
     std::vector<int> contribute_metals;
     int violate_count;
     int hasCritical;
+    std::vector<int> affected_window;
 } QuarterWindow;
 
 typedef struct window {
+    int index;
     long long area;
+    long long area_insufficient;
     double density;
 } Window;
 
@@ -98,6 +102,7 @@ std::string config_file, circuit_file, output_file, process_file, rule_file;
 // parameters
 int total_metals;
 int total_layers;
+int total_fills = 0;
 
 // hash set
 std::unordered_set<int> critical_nets;
@@ -117,6 +122,7 @@ int qwindow_x, qwindow_y;
 
 // rule file
 std::vector<Rule> rules;
+std::vector<long long> min_area_per_window;
 
 // metal linked list, head nodes of each layer
 // std::vector<Metal*> metals;
