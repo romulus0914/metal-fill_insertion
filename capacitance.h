@@ -277,7 +277,7 @@ void CalculateLateralCapacitance()
             if (remaining_length == 0)
                 break;
         }
-        edge.clear();
+        vector<int>().swap(edge);
 
         // down
         edge.insert(edge.begin(), width, 0);
@@ -299,7 +299,7 @@ void CalculateLateralCapacitance()
             if (remaining_length == 0)
                 break;
         }
-        edge.clear();
+        vector<int>().swap(edge);
 
         // left
         width = cur_metal.tr_y - cur_metal.bl_y;
@@ -322,7 +322,7 @@ void CalculateLateralCapacitance()
             if (remaining_length == 0)
                 break;
         }
-        edge.clear();
+        vector<int>().swap(edge);
 
         // right
         edge.insert(edge.begin(), width, 0);
@@ -472,7 +472,7 @@ void CalculateFringeCapacitance()
             if (remaining_length == 0)
                 break;
         }
-        edge.clear();
+        vector<int>().swap(edge);
 
         // down
         edge.insert(edge.begin(), width, 0);
@@ -494,7 +494,7 @@ void CalculateFringeCapacitance()
             if (remaining_length == 0)
                 break;
         }
-        edge.clear();
+        vector<int>().swap(edge);
 
         // left
         width = cur_metal.tr_y - cur_metal.bl_y;
@@ -515,7 +515,7 @@ void CalculateFringeCapacitance()
             //     exit(1);
                 break;
         }
-        edge.clear();
+        vector<int>().swap(edge);
 
         // right
         edge.insert(edge.begin(), width, 0);
