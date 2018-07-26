@@ -63,6 +63,7 @@ typedef struct rule {
 // };
 
 typedef struct quarter_window {
+    int index;
     long long area;
     // coordinate
     int bl_x;
@@ -80,6 +81,7 @@ typedef struct window {
     long long area;
     long long area_insufficient;
     double density;
+    std::vector<int> included_qwindow;
 } Window;
 
 typedef struct area_table {
