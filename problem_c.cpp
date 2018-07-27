@@ -1,8 +1,11 @@
-#include <stdio.h>
+#include <cstdio>
+#include <cstdlib>
+#include <ctime>
 #include <string.h>
 #include <iostream>
 #include <fstream>
 #include <algorithm>
+#include <utility>
 
 //#include "problem_c.h"
 #include "capacitance.h"
@@ -314,6 +317,7 @@ void ReadRule()
     Rule r;
     string str;
     long long w_area = (long long)window_size * window_size;
+    long long qw_area = (long long)stride * stride;
     while (file >> r.layer >> str >> r.min_width >> r.min_space >> r.max_fill_width >> 
            r.min_density >> r.max_density) {
         min_area_per_window.emplace_back(w_area * r.min_density);
@@ -424,6 +428,149 @@ void AnalyzeDensity()
 
         quarter_windows.emplace_back(qwindows);
         windows.emplace_back(ws);
+    }
+}
+
+void FindSpace(const QuarterWindow &qw, const int min_width, const int min_space)
+{
+    int actual_min_width = min_width + 2 * min_space;
+
+    vector<Rect> rts;
+    vector<Rect> temp_rts;
+    Rect qw_rect = {.bl_x = qw.bl_x, .bl_y = qw.bl_y, .tr_x = qw.tr_x, .tr_y = qw.tr_y, .width_x = stride, .width_y = stride};
+    rts.emplace_back(qw_rect);
+    for (int metal_id : qw.contribute_metals) {
+        Layout &temp = layouts[metal_id];
+        for (Rect rt : rts) {
+            Rect rt_new;
+            // intersect types
+            // middle
+            if (rt.bl_x < temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y > temp.tr_y) {
+                // four new rects
+                // x width larger
+                if (temp.tr_x - temp.bl_x > temp.tr_y - temp.bl_y) {
+                    // up
+                    rt_new.bl_x = rt.bl_x;
+                    rt_new.bl_y = temp.tr_y;
+                    rt_new.tr_x = rt.tr_x;
+                    rt_new.tr_y = rt.tr_y;
+                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
+                        temp_rts.emplace_back(rt_new);
+                    // bottom
+                    rt_new.bl_y = rt.bl_y;
+                    rt_new.tr_y = temp.bl_y;
+                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
+                        temp_rts.emplace_back(rt_new);
+                    // left
+                    rt_new.bl_x = rt.bl_x;
+                    rt_new.bl_y = temp.bl_y;
+                    rt_new.tr_x = temp.bl_x;
+                    rt_new.tr_y = temp.tr_y;
+                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
+                        temp_rts.emplace_back(rt_new);
+                    // right
+                    rt_new.bl_x = temp.tr_x;
+                    rt_new.tr_x = rt.tr_x;
+                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
+                        temp_rts.emplace_back(rt_new);
+                }
+                // y width larger
+                else {
+                    // left
+                    rt_new.bl_x = rt.bl_x;
+                    rt_new.bl_y = rt.bl_y;
+                    rt_new.tr_x = temp.bl_x;
+                    rt_new.tr_y = rt.tr_y;
+                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
+                        temp_rts.emplace_back(rt_new);
+                    // right
+                    rt_new.bl_x = temp.tr_x;
+                    rt_new.tr_x = rt.tr_x;
+                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
+                        temp_rts.emplace_back(rt_new);
+                    // up
+                    rt_new.bl_x = temp.bl_x;
+                    rt_new.bl_y = temp.tr_y;
+                    rt_new.tr_x = temp.tr_x;
+                    rt_new.tr_y = rt.tr_y;
+                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
+                        temp_rts.emplace_back(rt_new);
+                    // bottom
+                    rt_new.bl_y = rt.bl_y;
+                    rt_new.tr_y = temp.bl_y;
+                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
+                        temp_rts.emplace_back(rt_new);
+                }
+            }
+            // left middle
+            else if (rt.bl_x >= temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y > temp.tr_y) {
+
+            }
+            // bottom middle
+            else if (rt.bl_x < temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y > temp.tr_y) {
+
+            }
+            // right middle
+            else if (rt.bl_x < temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y > temp.tr_y) {
+
+            }
+            // up middle
+            else if (rt.bl_x < temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y <= temp.tr_y) {
+
+            }
+            // bottom left
+            else if (rt.bl_x >= temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y > temp.tr_y) {
+
+            }
+            // horizontal middle
+            else if (rt.bl_x >= temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y > temp.tr_y) {
+
+            }
+            // top left
+            else if (rt.bl_x >= temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y <= temp.tr_y) {
+
+            }
+            // bottom right
+            else if (rt.bl_x < temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y > temp.tr_y) {
+                
+            }
+            // vertical middle
+            else if (rt.bl_x < temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y <= temp.tr_y) {
+                
+            }
+            // top right
+            else if (rt.bl_x < temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y <= temp.tr_y) {
+                
+            }
+            // bottom
+            else if (rt.bl_x >= temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y > temp.tr_y) {
+                
+            }
+            // left
+            else if (rt.bl_x >= temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y <= temp.tr_y) {
+                
+            }
+            // top
+            else if (rt.bl_x >= temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y <= temp.tr_y) {
+                
+            }
+            // right
+            else if (rt.bl_x < temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y <= temp.tr_y) {
+                
+            }
+        }
     }
 }
 
@@ -544,8 +691,7 @@ int AddMetalFill(const Rect rt, const int layer, const int x_offset, const  int 
     metal_fill.type = 3; // Fill
     metal_fill.isCritical = false;
 
-    layouts.emplace_back(metal_fill);
-    total_fills++;
+    metal_fill_layouts.emplace_back(metal_fill);
 
     return metal_fill.id;
 }
@@ -813,21 +959,10 @@ void OutputLayout()
 {
     ofstream file(path + "circuit_metal-fill.cut");
 
-    file << cb.bl_x << " " << cb.bl_y << " " << cb.tr_x << " " << cb.tr_y << "; chip boundary\n";
-
-    for (int i = 1; i <= total_metals; i++) {
-        Layout &temp = layouts[i];
+    for (Layout temp : metal_fill_layouts) {
         file << temp.id << " " << temp.bl_x + cb.bl_x << " " << temp.bl_y + cb.bl_y << " "
              << temp.tr_x + cb.bl_x << " " << temp.tr_y + cb.bl_y << " "
-             << temp.net_id << " " << temp.layer << " ";
-        if (temp.type == 0)
-            file << "Drv_Pin\n";
-        else if (temp.type == 1)
-            file << "Normal\n";
-        else if (temp.type == 2)
-            file << "Load_Pin\n";
-        else if (temp.type == 3)
-            file << "Fill\n";
+             << temp.net_id << " " << temp.layer << " Fill\n";
     }
 
     file.close();
