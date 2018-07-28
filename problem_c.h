@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <vector>
 #include <set>
@@ -113,6 +114,7 @@ int power_net, ground_net;
 // circuit file
 Rect cb; // chip boundary
 std::vector<Layout> layouts;
+std::vector<Layout> metal_fill_layouts;
 
 // process file
 int window_size = 10000;
@@ -124,7 +126,6 @@ int qwindow_x, qwindow_y;
 
 // rule file
 std::vector<Rule> rules;
-std::vector<long long> min_area_per_window;
 
 // metal linked list, head nodes of each layer
 // std::vector<Metal*> metals;
