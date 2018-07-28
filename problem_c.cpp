@@ -431,17 +431,24 @@ void AnalyzeDensity()
 
 void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, const int min_space)
 {
-    int actual_min_width = min_width + 2 * min_space;
+    int actual_min_width = min_width + min_space;
+    if (min_space % 2 == 1)
+        actual_min_width += 1;
 
     Rect qw_rect = {.bl_x = qw.bl_x, .bl_y = qw.bl_y, .tr_x = qw.tr_x, .tr_y = qw.tr_y, .width_x = stride, .width_y = stride};
     rts.emplace_back(qw_rect);
 
+    int id = 105;
     for (int metal_id : qw.contribute_metals) {
         Layout &temp = layouts[metal_id];
+        if (qw.index == id)
+            printf("(%d %d %d %d)\n", temp.bl_x, temp.bl_y, temp.tr_x, temp.tr_y);
         vector<Rect> temp_rts;
         for (Rect rt : rts) {
+            if (qw.index == id)
+                printf("  (%d %d %d %d)\n", rt.bl_x, rt.bl_y, rt.tr_x, rt.tr_y);
             // if not overlap then add
-            if (rt.bl_x >= temp.tr_x || rt.tr_x <= temp.bl_x || rt.bl_y >= temp.tr_y || rt.tr_y <= temp.tr_y) {
+            if (rt.bl_x >= temp.tr_x || rt.tr_x <= temp.bl_x || rt.bl_y >= temp.tr_y || rt.tr_y <= temp.bl_y) {
                 temp_rts.emplace_back(rt);
                 continue;
             }
@@ -452,290 +459,385 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
             int bit2 = rt.tr_x > temp.tr_x ? 0 : 4;
             int bit3 = rt.tr_y > temp.tr_y ? 0 : 8;
             int condition = bit0 + bit1 + bit2 + bit3;
+            if (qw.index == id)
+                printf("  cond: %d\n", condition);
             
             Rect rt_new;
             // middle (rt.bl_x < temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y > temp.tr_y)
             if (condition == 0) {
+                vector<Rect> temp1;
+                vector<Rect> temp2;
+                long long valid_area1 = 0;
+                long long valid_area2 = 0;
                 // four new rects
-                if (temp.tr_x - temp.bl_x > temp.tr_y - temp.bl_y) {
-                    // top
-                    rt_new.bl_x = rt.bl_x;
-                    rt_new.bl_y = temp.tr_y;
-                    rt_new.tr_x = rt.tr_x;
-                    rt_new.tr_y = rt.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // bottom
-                    rt_new.bl_y = rt.bl_y;
-                    rt_new.tr_y = temp.bl_y;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // left
-                    rt_new.bl_x = rt.bl_x;
-                    rt_new.bl_y = temp.bl_y;
-                    rt_new.tr_x = temp.bl_x;
-                    rt_new.tr_y = temp.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // right
-                    rt_new.bl_x = temp.tr_x;
-                    rt_new.tr_x = rt.tr_x;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
+                // slice along x
+                // top
+                rt_new.bl_x = rt.bl_x;
+                rt_new.bl_y = temp.tr_y;
+                rt_new.tr_x = rt.tr_x;
+                rt_new.tr_y = rt.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp1.emplace_back(rt_new);
+                    valid_area1 += (long long)rt_new.width_x * rt_new.width_y;
                 }
-                else {
-                    // left
-                    rt_new.bl_x = rt.bl_x;
-                    rt_new.bl_y = rt.bl_y;
-                    rt_new.tr_x = temp.bl_x;
-                    rt_new.tr_y = rt.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // right
-                    rt_new.bl_x = temp.tr_x;
-                    rt_new.tr_x = rt.tr_x;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // top
-                    rt_new.bl_x = temp.bl_x;
-                    rt_new.bl_y = temp.tr_y;
-                    rt_new.tr_x = temp.tr_x;
-                    rt_new.tr_y = rt.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // bottom
-                    rt_new.bl_y = rt.bl_y;
-                    rt_new.tr_y = temp.bl_y;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
+                // bottom
+                rt_new.bl_y = rt.bl_y;
+                rt_new.tr_y = temp.bl_y;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp1.emplace_back(rt_new);
+                    valid_area1 += (long long)rt_new.width_x * rt_new.width_y;
                 }
+                // left
+                rt_new.bl_x = rt.bl_x;
+                rt_new.bl_y = temp.bl_y;
+                rt_new.tr_x = temp.bl_x;
+                rt_new.tr_y = temp.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp1.emplace_back(rt_new);
+                    valid_area1 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+                // right
+                rt_new.bl_x = temp.tr_x;
+                rt_new.tr_x = rt.tr_x;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp1.emplace_back(rt_new);
+                    valid_area1 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+
+                // slice along y
+                // left
+                rt_new.bl_x = rt.bl_x;
+                rt_new.bl_y = rt.bl_y;
+                rt_new.tr_x = temp.bl_x;
+                rt_new.tr_y = rt.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp2.emplace_back(rt_new);
+                    valid_area2 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+                // right
+                rt_new.bl_x = temp.tr_x;
+                rt_new.tr_x = rt.tr_x;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp2.emplace_back(rt_new);
+                    valid_area2 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+                // top
+                rt_new.bl_x = temp.bl_x;
+                rt_new.bl_y = temp.tr_y;
+                rt_new.tr_x = temp.tr_x;
+                rt_new.tr_y = rt.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp2.emplace_back(rt_new);
+                    valid_area2 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+                // bottom
+                rt_new.bl_y = rt.bl_y;
+                rt_new.tr_y = temp.bl_y;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp2.emplace_back(rt_new);
+                    valid_area2 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+
+                // insert the larger area
+                if (valid_area1 > valid_area2)
+                    temp_rts.insert(temp_rts.end(), temp1.begin(), temp1.end());
+                else
+                    temp_rts.insert(temp_rts.end(), temp2.begin(), temp2.end());
             }
             // left middle (rt.bl_x >= temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y > temp.tr_y)
             else if (condition == 1) {
+                vector<Rect> temp1;
+                vector<Rect> temp2;
+                long long valid_area1 = 0;
+                long long valid_area2 = 0;
                 // three new rects
-                if (temp.tr_x -  rt.bl_x > temp.tr_y - temp.bl_y) {
-                    // top
-                    rt_new.bl_x = rt.bl_x;
-                    rt_new.bl_y = temp.tr_y;
-                    rt_new.tr_x = rt.tr_x;
-                    rt_new.tr_y = rt.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // bottom
-                    rt_new.bl_y = rt.bl_y;
-                    rt_new.tr_y = temp.bl_y;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // right
-                    rt_new.bl_x = temp.tr_x;
-                    rt_new.bl_y = temp.bl_y;
-                    rt_new.tr_x = rt.tr_x;
-                    rt_new.tr_y = temp.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
+                // top
+                rt_new.bl_x = rt.bl_x;
+                rt_new.bl_y = temp.tr_y;
+                rt_new.tr_x = rt.tr_x;
+                rt_new.tr_y = rt.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp1.emplace_back(rt_new);
+                    valid_area1 += (long long)rt_new.width_x * rt_new.width_y;
                 }
-                else {
-                    // top
-                    rt_new.bl_x = rt.bl_x;
-                    rt_new.bl_y = temp.tr_y;
-                    rt_new.tr_x = temp.tr_x;
-                    rt_new.tr_y = rt.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // bottom
-                    rt_new.bl_y = rt.bl_y;
-                    rt_new.tr_y = temp.bl_y;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // right
-                    rt_new.bl_x = temp.tr_x;
-                    rt_new.bl_y = rt.bl_y;
-                    rt_new.tr_x = rt.tr_x;
-                    rt_new.tr_y = rt.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
+                // bottom
+                rt_new.bl_y = rt.bl_y;
+                rt_new.tr_y = temp.bl_y;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp1.emplace_back(rt_new);
+                    valid_area1 += (long long)rt_new.width_x * rt_new.width_y;
                 }
+                // right
+                rt_new.bl_x = temp.tr_x;
+                rt_new.bl_y = temp.bl_y;
+                rt_new.tr_x = rt.tr_x;
+                rt_new.tr_y = temp.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp1.emplace_back(rt_new);
+                    valid_area1 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+
+                // top
+                rt_new.bl_x = rt.bl_x;
+                rt_new.bl_y = temp.tr_y;
+                rt_new.tr_x = temp.tr_x;
+                rt_new.tr_y = rt.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp2.emplace_back(rt_new);
+                    valid_area2 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+                // bottom
+                rt_new.bl_y = rt.bl_y;
+                rt_new.tr_y = temp.bl_y;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp2.emplace_back(rt_new);
+                    valid_area2 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+                // right
+                rt_new.bl_x = temp.tr_x;
+                rt_new.bl_y = rt.bl_y;
+                rt_new.tr_x = rt.tr_x;
+                rt_new.tr_y = rt.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp2.emplace_back(rt_new);
+                    valid_area2 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+
+                if (valid_area1 > valid_area2)
+                    temp_rts.insert(temp_rts.end(), temp1.begin(), temp1.end());
+                else
+                    temp_rts.insert(temp_rts.end(), temp2.begin(), temp2.end());
             }
             // bottom middle (rt.bl_x < temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y > temp.tr_y)
             else if (condition == 2) {
+                vector<Rect> temp1;
+                vector<Rect> temp2;
+                long long valid_area1 = 0;
+                long long valid_area2 = 0;
                 // three new rects
-                if (temp.tr_x - temp.bl_x > temp.tr_y - rt.bl_y) {
-                    // top
-                    rt_new.bl_x = rt.bl_x;
-                    rt_new.bl_y = temp.tr_y;
-                    rt_new.tr_x = rt.tr_x;
-                    rt_new.tr_y = rt.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // left
-                    rt_new.bl_x = rt.bl_x;
-                    rt_new.bl_y = rt.bl_y;
-                    rt_new.tr_x = temp.bl_x;
-                    rt_new.tr_y = temp.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // right
-                    rt_new.bl_x = temp.tr_x;
-                    rt_new.tr_x = rt.tr_x;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
+                // top
+                rt_new.bl_x = rt.bl_x;
+                rt_new.bl_y = temp.tr_y;
+                rt_new.tr_x = rt.tr_x;
+                rt_new.tr_y = rt.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp1.emplace_back(rt_new);
+                    valid_area1 += (long long)rt_new.width_x * rt_new.width_y;
                 }
-                else {
-                    // top
-                    rt_new.bl_x = temp.bl_x;
-                    rt_new.bl_y = temp.tr_y;
-                    rt_new.tr_x = temp.tr_x;
-                    rt_new.tr_y = rt.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // left
-                    rt_new.bl_x = rt.bl_x;
-                    rt_new.bl_y = rt.bl_y;
-                    rt_new.tr_x = temp.bl_x;
-                    rt_new.tr_y = rt.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // right
-                    rt_new.bl_x = temp.tr_x;
-                    rt_new.tr_x = rt.tr_x;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
+                // left
+                rt_new.bl_x = rt.bl_x;
+                rt_new.bl_y = rt.bl_y;
+                rt_new.tr_x = temp.bl_x;
+                rt_new.tr_y = temp.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp1.emplace_back(rt_new);
+                    valid_area1 += (long long)rt_new.width_x * rt_new.width_y;
                 }
+                // right
+                rt_new.bl_x = temp.tr_x;
+                rt_new.tr_x = rt.tr_x;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp1.emplace_back(rt_new);
+                    valid_area1 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+
+                // top
+                rt_new.bl_x = temp.bl_x;
+                rt_new.bl_y = temp.tr_y;
+                rt_new.tr_x = temp.tr_x;
+                rt_new.tr_y = rt.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp2.emplace_back(rt_new);
+                    valid_area2 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+                // left
+                rt_new.bl_x = rt.bl_x;
+                rt_new.bl_y = rt.bl_y;
+                rt_new.tr_x = temp.bl_x;
+                rt_new.tr_y = rt.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp2.emplace_back(rt_new);
+                    valid_area2 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+                // right
+                rt_new.bl_x = temp.tr_x;
+                rt_new.tr_x = rt.tr_x;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp2.emplace_back(rt_new);
+                    valid_area2 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+
+                if (valid_area1 > valid_area2)
+                    temp_rts.insert(temp_rts.end(), temp1.begin(), temp1.end());
+                else
+                    temp_rts.insert(temp_rts.end(), temp2.begin(), temp2.end());
             }
             // bottom left (rt.bl_x >= temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y > temp.tr_y)
             else if (condition == 3) {
+                vector<Rect> temp1;
+                vector<Rect> temp2;
+                long long valid_area1 = 0;
+                long long valid_area2 = 0;
                 // two new rects
-                if (temp.tr_x - rt.bl_x > temp.tr_y - rt.bl_y) {
-                    // top
-                    rt_new.bl_x = rt.bl_x;
-                    rt_new.bl_y = temp.tr_y;
-                    rt_new.tr_x = rt.tr_x;
-                    rt_new.tr_y = rt.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // bottom
-                    rt_new.bl_x = temp.tr_x;
-                    rt_new.bl_y = rt.bl_y;
-                    rt_new.tr_x = rt.tr_x;
-                    rt_new.tr_y = temp.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
+                // top
+                rt_new.bl_x = rt.bl_x;
+                rt_new.bl_y = temp.tr_y;
+                rt_new.tr_x = rt.tr_x;
+                rt_new.tr_y = rt.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp1.emplace_back(rt_new);
+                    valid_area1 += (long long)rt_new.width_x * rt_new.width_y;
                 }
-                else {
-                    // left
-                    rt_new.bl_x = rt.bl_x;
-                    rt_new.bl_y = temp.tr_y;
-                    rt_new.tr_x = temp.tr_x;
-                    rt_new.tr_y = rt.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // right
-                    rt_new.bl_x = temp.tr_x;
-                    rt_new.bl_y = rt.bl_y;
-                    rt_new.tr_x = rt.tr_x;
-                    rt_new.tr_y = rt.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
+                // bottom
+                rt_new.bl_x = temp.tr_x;
+                rt_new.bl_y = rt.bl_y;
+                rt_new.tr_x = rt.tr_x;
+                rt_new.tr_y = temp.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp1.emplace_back(rt_new);
+                    valid_area1 += (long long)rt_new.width_x * rt_new.width_y;
                 }
+
+                // left
+                rt_new.bl_x = rt.bl_x;
+                rt_new.bl_y = temp.tr_y;
+                rt_new.tr_x = temp.tr_x;
+                rt_new.tr_y = rt.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp2.emplace_back(rt_new);
+                    valid_area2 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+                // right
+                rt_new.bl_x = temp.tr_x;
+                rt_new.bl_y = rt.bl_y;
+                rt_new.tr_x = rt.tr_x;
+                rt_new.tr_y = rt.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp2.emplace_back(rt_new);
+                    valid_area2 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+
+                if (valid_area1 > valid_area2)
+                    temp_rts.insert(temp_rts.end(), temp1.begin(), temp1.end());
+                else
+                    temp_rts.insert(temp_rts.end(), temp2.begin(), temp2.end());
             }
             // right middle (rt.bl_x < temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y > temp.tr_y)
             else if (condition == 4) {
+                vector<Rect> temp1;
+                vector<Rect> temp2;
+                long long valid_area1 = 0;
+                long long valid_area2 = 0;
                 // three new rects
-                if (rt.tr_x - temp.bl_x > temp.tr_y - temp.bl_y) {
-                    // top
-                    rt_new.bl_x = rt.bl_x;
-                    rt_new.bl_y = temp.tr_y;
-                    rt_new.tr_x = rt.tr_x;
-                    rt_new.tr_y = rt.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // bottom
-                    rt_new.bl_y = rt.bl_y;
-                    rt_new.tr_y = temp.bl_y;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // left
-                    rt_new.bl_x = rt.bl_x;
-                    rt_new.bl_y = temp.bl_y;
-                    rt_new.tr_x = temp.bl_x;
-                    rt_new.tr_y = temp.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
+                // top
+                rt_new.bl_x = rt.bl_x;
+                rt_new.bl_y = temp.tr_y;
+                rt_new.tr_x = rt.tr_x;
+                rt_new.tr_y = rt.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp1.emplace_back(rt_new);
+                    valid_area1 += (long long)rt_new.width_x * rt_new.width_y;
                 }
-                else {
-                    // top
-                    rt_new.bl_x = temp.bl_x;
-                    rt_new.bl_y = temp.tr_y;
-                    rt_new.tr_x = rt.tr_x;
-                    rt_new.tr_y = rt.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // bottom
-                    rt_new.bl_y = rt.bl_y;
-                    rt_new.tr_y = temp.bl_y;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // left
-                    rt_new.bl_x = rt.bl_x;
-                    rt_new.bl_y = rt.bl_y;
-                    rt_new.tr_x = temp.bl_x;
-                    rt_new.tr_y = rt.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
+                // bottom
+                rt_new.bl_y = rt.bl_y;
+                rt_new.tr_y = temp.bl_y;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp1.emplace_back(rt_new);
+                    valid_area1 += (long long)rt_new.width_x * rt_new.width_y;
                 }
+                // left
+                rt_new.bl_x = rt.bl_x;
+                rt_new.bl_y = temp.bl_y;
+                rt_new.tr_x = temp.bl_x;
+                rt_new.tr_y = temp.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp1.emplace_back(rt_new);
+                    valid_area1 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+
+                // top
+                rt_new.bl_x = temp.bl_x;
+                rt_new.bl_y = temp.tr_y;
+                rt_new.tr_x = rt.tr_x;
+                rt_new.tr_y = rt.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp2.emplace_back(rt_new);
+                    valid_area2 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+                // bottom
+                rt_new.bl_y = rt.bl_y;
+                rt_new.tr_y = temp.bl_y;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp2.emplace_back(rt_new);
+                    valid_area2 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+                // left
+                rt_new.bl_x = rt.bl_x;
+                rt_new.bl_y = rt.bl_y;
+                rt_new.tr_x = temp.bl_x;
+                rt_new.tr_y = rt.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp2.emplace_back(rt_new);
+                    valid_area2 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+
+                if (valid_area1 > valid_area2)
+                    temp_rts.insert(temp_rts.end(), temp1.begin(), temp1.end());
+                else
+                    temp_rts.insert(temp_rts.end(), temp2.begin(), temp2.end());
             }
             // horizontal middle (rt.bl_x >= temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y > temp.tr_y)
-            else if (condition = 5) {
+            else if (condition == 5) {
                 // two new rects
                 // top
                 rt_new.bl_x = rt.bl_x;
@@ -756,47 +858,61 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
             }
             // bottom right (rt.bl_x < temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y > temp.tr_y)
             else if (condition == 6) {
+                vector<Rect> temp1;
+                vector<Rect> temp2;
+                long long valid_area1 = 0;
+                long long valid_area2 = 0;
                 // two new rects
-                if (rt.tr_x - temp.bl_x > temp.tr_y - rt.bl_y) {
-                    // top
-                    rt_new.bl_x = rt.bl_x;
-                    rt_new.bl_y = temp.tr_y;
-                    rt_new.tr_x = rt.tr_x;
-                    rt_new.tr_y = rt.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // bottom
-                    rt_new.bl_x = rt.bl_x;
-                    rt_new.bl_y = rt.bl_y;
-                    rt_new.tr_x = temp.bl_x;
-                    rt_new.tr_y = temp.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
+                // top
+                rt_new.bl_x = rt.bl_x;
+                rt_new.bl_y = temp.tr_y;
+                rt_new.tr_x = rt.tr_x;
+                rt_new.tr_y = rt.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp1.emplace_back(rt_new);
+                    valid_area1 += (long long)rt_new.width_x * rt_new.width_y;
                 }
-                else {
-                    // left
-                    rt_new.bl_x = rt.bl_x;
-                    rt_new.bl_y = rt.bl_y;
-                    rt_new.tr_x = temp.bl_x;
-                    rt_new.tr_y = rt.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // right
-                    rt_new.bl_x = temp.bl_x;
-                    rt_new.bl_y = temp.tr_y;
-                    rt_new.tr_x = rt.tr_x;
-                    rt_new.tr_y = rt.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
+                // bottom
+                rt_new.bl_x = rt.bl_x;
+                rt_new.bl_y = rt.bl_y;
+                rt_new.tr_x = temp.bl_x;
+                rt_new.tr_y = temp.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp1.emplace_back(rt_new);
+                    valid_area1 += (long long)rt_new.width_x * rt_new.width_y;
                 }
+
+                // left
+                rt_new.bl_x = rt.bl_x;
+                rt_new.bl_y = rt.bl_y;
+                rt_new.tr_x = temp.bl_x;
+                rt_new.tr_y = rt.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp2.emplace_back(rt_new);
+                    valid_area2 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+                // right
+                rt_new.bl_x = temp.bl_x;
+                rt_new.bl_y = temp.tr_y;
+                rt_new.tr_x = rt.tr_x;
+                rt_new.tr_y = rt.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp2.emplace_back(rt_new);
+                    valid_area2 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+
+                if (valid_area1 > valid_area2)
+                    temp_rts.insert(temp_rts.end(), temp1.begin(), temp1.end());
+                else
+                    temp_rts.insert(temp_rts.end(), temp2.begin(), temp2.end());
             }
             // bottom (rt.bl_x >= temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y > temp.tr_y)
             else if (condition == 7) {
@@ -813,103 +929,135 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
             }
             // top middle (rt.bl_x < temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y <= temp.tr_y)
             else if (condition == 8) {
+                vector<Rect> temp1;
+                vector<Rect> temp2;
+                long long valid_area1 = 0;
+                long long valid_area2 = 0;
                 // three new rects
-                if (temp.tr_x - temp.bl_x > rt.tr_y - temp.bl_y) {
-                    // left
-                    rt_new.bl_x = rt.bl_x;
-                    rt_new.bl_y = temp.bl_y;
-                    rt_new.tr_x = temp.bl_x;
-                    rt_new.tr_y = rt.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // right
-                    rt_new.bl_x = temp.tr_x;
-                    rt_new.tr_x = rt.tr_x;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // bottom
-                    rt_new.bl_x = rt.bl_x;
-                    rt_new.bl_y = rt.bl_y;
-                    rt_new.tr_x = rt.tr_x;
-                    rt_new.tr_y = temp.bl_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
+                // left
+                rt_new.bl_x = rt.bl_x;
+                rt_new.bl_y = temp.bl_y;
+                rt_new.tr_x = temp.bl_x;
+                rt_new.tr_y = rt.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp1.emplace_back(rt_new);
+                    valid_area1 += (long long)rt_new.width_x * rt_new.width_y;
                 }
-                else {
-                    // left
-                    rt_new.bl_x = rt.bl_x;
-                    rt_new.bl_y = rt.bl_y;
-                    rt_new.tr_x = temp.bl_x;
-                    rt_new.tr_y = rt.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // right
-                    rt_new.bl_x = temp.tr_x;
-                    rt_new.tr_x = rt.tr_x;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // bottom
-                    rt_new.bl_x = temp.bl_x;
-                    rt_new.bl_y = rt.bl_y;
-                    rt_new.tr_x = temp.tr_x;
-                    rt_new.tr_y = temp.bl_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
+                // right
+                rt_new.bl_x = temp.tr_x;
+                rt_new.tr_x = rt.tr_x;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp1.emplace_back(rt_new);
+                    valid_area1 += (long long)rt_new.width_x * rt_new.width_y;
                 }
+                // bottom
+                rt_new.bl_x = rt.bl_x;
+                rt_new.bl_y = rt.bl_y;
+                rt_new.tr_x = rt.tr_x;
+                rt_new.tr_y = temp.bl_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp1.emplace_back(rt_new);
+                    valid_area1 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+
+                // left
+                rt_new.bl_x = rt.bl_x;
+                rt_new.bl_y = rt.bl_y;
+                rt_new.tr_x = temp.bl_x;
+                rt_new.tr_y = rt.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp2.emplace_back(rt_new);
+                    valid_area2 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+                // right
+                rt_new.bl_x = temp.tr_x;
+                rt_new.tr_x = rt.tr_x;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp2.emplace_back(rt_new);
+                    valid_area2 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+                // bottom
+                rt_new.bl_x = temp.bl_x;
+                rt_new.bl_y = rt.bl_y;
+                rt_new.tr_x = temp.tr_x;
+                rt_new.tr_y = temp.bl_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp2.emplace_back(rt_new);
+                    valid_area2 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+
+                if (valid_area1 > valid_area2)
+                    temp_rts.insert(temp_rts.end(), temp1.begin(), temp1.end());
+                else
+                    temp_rts.insert(temp_rts.end(), temp2.begin(), temp2.end());
             }
             // top left (rt.bl_x >= temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y <= temp.tr_y)
             else if (condition == 9) {
+                vector<Rect> temp1;
+                vector<Rect> temp2;
+                long long valid_area1 = 0;
+                long long valid_area2 = 0;
                 // two new rects
-                if (temp.tr_x - rt.bl_x > rt.tr_y - temp.bl_y) {
-                    // top
-                    rt_new.bl_x = temp.tr_x;
-                    rt_new.bl_y = temp.bl_y;
-                    rt_new.tr_x = rt.tr_x;
-                    rt_new.tr_y = rt.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // bottom
-                    rt_new.bl_x = rt.bl_x;
-                    rt_new.bl_y = rt.bl_y;
-                    rt_new.tr_x = rt.tr_x;
-                    rt_new.tr_y = temp.bl_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
+                // top
+                rt_new.bl_x = temp.tr_x;
+                rt_new.bl_y = temp.bl_y;
+                rt_new.tr_x = rt.tr_x;
+                rt_new.tr_y = rt.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp1.emplace_back(rt_new);
+                    valid_area1 += (long long)rt_new.width_x * rt_new.width_y;
                 }
-                else {
-                    // left
-                    rt_new.bl_x = rt.bl_x;
-                    rt_new.bl_y = rt.bl_y;
-                    rt_new.tr_x = temp.tr_x;
-                    rt_new.tr_y = temp.bl_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    //right
-                    rt_new.bl_x = temp.tr_x;
-                    rt_new.bl_y = rt.bl_y;
-                    rt_new.tr_x = rt.tr_x;
-                    rt_new.tr_y = rt.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
+                // bottom
+                rt_new.bl_x = rt.bl_x;
+                rt_new.bl_y = rt.bl_y;
+                rt_new.tr_x = rt.tr_x;
+                rt_new.tr_y = temp.bl_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp1.emplace_back(rt_new);
+                    valid_area1 += (long long)rt_new.width_x * rt_new.width_y;
                 }
+
+                // left
+                rt_new.bl_x = rt.bl_x;
+                rt_new.bl_y = rt.bl_y;
+                rt_new.tr_x = temp.tr_x;
+                rt_new.tr_y = temp.bl_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp2.emplace_back(rt_new);
+                    valid_area2 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+                //right
+                rt_new.bl_x = temp.tr_x;
+                rt_new.bl_y = rt.bl_y;
+                rt_new.tr_x = rt.tr_x;
+                rt_new.tr_y = rt.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp2.emplace_back(rt_new);
+                    valid_area2 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+
+                if (valid_area1 > valid_area2)
+                    temp_rts.insert(temp_rts.end(), temp1.begin(), temp1.end());
+                else
+                    temp_rts.insert(temp_rts.end(), temp2.begin(), temp2.end());
             }
             // vertical middle (rt.bl_x < temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y <= temp.tr_y)
             else if (condition == 10) {
@@ -945,47 +1093,61 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
             }
             // top right (rt.bl_x < temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y <= temp.tr_y)
             else if (condition == 12) {
+                vector<Rect> temp1;
+                vector<Rect> temp2;
+                long long valid_area1 = 0;
+                long long valid_area2 = 0;
                 // two new rects
-                if (rt.tr_x - temp.bl_x > rt.tr_y - temp.bl_y) {
-                    // top
-                    rt_new.bl_x = rt.bl_x;
-                    rt_new.bl_y = temp.bl_y;
-                    rt_new.tr_x = temp.bl_x;
-                    rt_new.tr_y = rt.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // bottom
-                    rt_new.bl_x = rt.bl_x;
-                    rt_new.bl_y = rt.bl_y;
-                    rt_new.tr_x = rt.tr_x;
-                    rt_new.tr_y = temp.bl_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
+                // top
+                rt_new.bl_x = rt.bl_x;
+                rt_new.bl_y = temp.bl_y;
+                rt_new.tr_x = temp.bl_x;
+                rt_new.tr_y = rt.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp1.emplace_back(rt_new);
+                    valid_area1 += (long long)rt_new.width_x * rt_new.width_y;
                 }
-                else {
-                    // left
-                    rt_new.bl_x = rt.bl_x;
-                    rt_new.bl_y = rt.bl_y;
-                    rt_new.tr_x = temp.bl_x;
-                    rt_new.tr_y = rt.tr_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
-                    // right
-                    rt_new.bl_x = temp.bl_x;
-                    rt_new.bl_y = rt.bl_y;
-                    rt_new.tr_x = rt.tr_x;
-                    rt_new.tr_y = temp.bl_y;
-                    rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
-                    rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
-                    if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
-                        temp_rts.emplace_back(rt_new);
+                // bottom
+                rt_new.bl_x = rt.bl_x;
+                rt_new.bl_y = rt.bl_y;
+                rt_new.tr_x = rt.tr_x;
+                rt_new.tr_y = temp.bl_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp1.emplace_back(rt_new);
+                    valid_area1 += (long long)rt_new.width_x * rt_new.width_y;
                 }
+
+                // left
+                rt_new.bl_x = rt.bl_x;
+                rt_new.bl_y = rt.bl_y;
+                rt_new.tr_x = temp.bl_x;
+                rt_new.tr_y = rt.tr_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp2.emplace_back(rt_new);
+                    valid_area2 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+                // right
+                rt_new.bl_x = temp.bl_x;
+                rt_new.bl_y = rt.bl_y;
+                rt_new.tr_x = rt.tr_x;
+                rt_new.tr_y = temp.bl_y;
+                rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+                rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+                if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width) {
+                    temp2.emplace_back(rt_new);
+                    valid_area2 += (long long)rt_new.width_x * rt_new.width_y;
+                }
+
+                if (valid_area1 > valid_area2)
+                    temp_rts.insert(temp_rts.end(), temp1.begin(), temp1.end());
+                else
+                    temp_rts.insert(temp_rts.end(), temp2.begin(), temp2.end());
             }
             // top (rt.bl_x >= temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y <= temp.tr_y)
             else if (condition == 13) {
@@ -1021,6 +1183,10 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
     sort(rts.begin(), rts.end(), [](const Rect &r1, const Rect &r2) {
         return r1.width_x * r1.width_y  > r2.width_x * r2.width_y;
     });
+
+    if (qw.index == id)
+        for (Rect rt : rts)
+            printf("(%d %d %d %d)\n", rt.bl_x, rt.bl_y, rt.tr_x, rt.tr_y);
 }
 
 Rect FindMaxSpace(const vector<int> &qw, const int min_width, const int max_width, const int min_space)
@@ -1119,10 +1285,20 @@ void AddMetalFill(const Rect rt, const int layer)
     metal_fill.type = 3; // Fill
     metal_fill.isCritical = false;
 
+    Rule &r = rules[layer - 1];
+    int width_x = metal_fill.tr_x - metal_fill.bl_x;
+    int width_y = metal_fill.tr_y - metal_fill.bl_y;
+    if (width_x < r.min_width || width_x > r.max_fill_width || width_y < r.min_width || width_y > r.max_fill_width) {
+        printf("[Error] violate rules at layer %d\n", layer);
+        printf("[Error] (%d %d %d %d %d %d)\n", metal_fill.bl_x, metal_fill.bl_y, metal_fill.tr_x, metal_fill.tr_y, width_x, width_y);
+        exit(1);
+    }
+
     layouts.emplace_back(metal_fill);
+    metal_fill_layouts.emplace_back(metal_fill);
 }
 
-long long ShrinkMetalFill(Rect rt, long long target_area, const int min_width, const int layer)
+long long ShrinkMetalFill(Rect rt, long long target_area, const int min_width, const int max_width, const int layer)
 {
     int x_width = rt.width_x;
     int y_width = rt.width_y;
@@ -1146,7 +1322,15 @@ long long ShrinkMetalFill(Rect rt, long long target_area, const int min_width, c
     rt.tr_y -= y_offset;
     rt.width_x = x_width;
     rt.width_y = y_width;
-    printf(" %d*%d=%lld ", rt.width_x, rt.width_y, (long long)rt.width_x * rt.width_y);
+    if (rt.width_x > max_width) {
+        rt.tr_x = rt.bl_x + max_width;
+        rt.width_x = max_width;
+    }
+    if (rt.width_y > max_width) {
+        rt.tr_y = rt.bl_y + max_width;
+        rt.width_y = max_width;
+    }
+    printf(" %d*%d=%lld(%d) ", rt.width_x, rt.width_y, (long long)rt.width_x * rt.width_y, layer);
 
     AddMetalFill(rt, layer);
     return (long long)rt.width_x * rt.width_y;
@@ -1175,7 +1359,11 @@ long long DivideMetalFill(Rect rt, long long target_area,
     }
 
     int x_width_rest = x_width % max_width_padding;
+    if (x_width_rest > max_width)
+        x_width_rest = max_width;
     int y_width_rest = y_width % max_width_padding;
+    if (y_width_rest > max_width)
+        y_width_rest = max_width;
     // y = max width
     if (x_width_rest != 0 && x_width_rest >= min_width) {
         r.bl_x = rt.bl_x + x_max_count * max_width_padding;
@@ -1228,7 +1416,7 @@ long long DivideMetalFill(Rect rt, long long target_area,
     // if break, try to shrink
     if (i != size) {
         printf(" shrink:");
-        total_fill_area += ShrinkMetalFill(rts[i], target_area - total_fill_area, min_width, layer);
+        total_fill_area += ShrinkMetalFill(rts[i], target_area - total_fill_area, min_width, max_width, layer);
     }
 
     printf(" %lld ", total_fill_area);
@@ -1261,6 +1449,8 @@ void FillMetalRandomly()
         vector<Window> &ws = windows[layer - 1];
         vector<QuarterWindow> &qws = quarter_windows[layer - 1];
         const Rule &r = rules[layer - 1];
+
+        int half_min_space = (r.min_space + 1) / 2;
         // min quarter window area
         long long min_area = (long long)stride * stride * r.min_density;
         // max, min metal fill area
@@ -1271,16 +1461,19 @@ void FillMetalRandomly()
         for (int qw_idx = 0; qw_idx < max_qwindows; qw_idx++) {
             QuarterWindow &qw = qws[qw_idx];
             long long target_area = min_area - qw.area;
+            // no need to metal fill
+            if (target_area <= 0)
+                continue;
             printf("%d %lld\n", qw_idx, qw.area);
 
             vector<Rect> rts;
             FindSpace(rts, qw, r.min_width, r.min_space);
 
             for (Rect metal_fill : rts) {
-                metal_fill.bl_x += r.min_space;
-                metal_fill.bl_y += r.min_space;
-                metal_fill.tr_x -= r.min_space;
-                metal_fill.tr_y -= r.min_space;
+                metal_fill.bl_x += half_min_space;
+                metal_fill.bl_y += half_min_space;
+                metal_fill.tr_x -= half_min_space;
+                metal_fill.tr_y -= half_min_space;
                 metal_fill.width_x = metal_fill.tr_x -  metal_fill.bl_x;
                 metal_fill.width_y = metal_fill.tr_y -  metal_fill.bl_y;
                 long long metal_fill_area = (long long)metal_fill.width_x * metal_fill.width_y;
@@ -1290,26 +1483,22 @@ void FillMetalRandomly()
                     printf("    min\n");
                     target_area -= MinMetalFill(metal_fill, r.min_width, layer);
                 }
-                else if (target_area <= max_metal_fill) {
-                    if (target_area >= metal_fill_area) {
-                        printf("    update\n");
-                        target_area -= UpdateMetalFill(metal_fill, layer);
-                    }
-                    else {
-                        printf("    shrink: ");
-                        target_area -= ShrinkMetalFill(metal_fill, target_area, r.min_width, layer);
-                        printf("\n");
-                    }
-                }
                 else {
-                    if (metal_fill_area <= max_metal_fill) {
-                        printf("    update\n");
-                        target_area -= UpdateMetalFill(metal_fill, layer);
+                    if (metal_fill.width_x <= r.max_fill_width && metal_fill.width_y <= r.max_fill_width) {
+                        if (target_area >= metal_fill_area) {
+                            printf("    update\n");
+                            target_area -= UpdateMetalFill(metal_fill, layer);
+                        }
+                        else {
+                            printf("    shrink: ");
+                            target_area -= ShrinkMetalFill(metal_fill, target_area, r.min_width, r.max_fill_width, layer);
+                            printf("\n");
+                        }
                     }
                     else {
                         printf("    divide: ");
                         target_area -= DivideMetalFill(metal_fill, target_area,
-                                                       r.min_width, r.max_fill_width, r.min_space, layer);
+                                                    r.min_width, r.max_fill_width, r.min_space, layer);
                         printf("\n");
                     }
                 }
@@ -1384,6 +1573,8 @@ int main(int argc, char **argv)
     // CalculateFringeCapacitance();
 
     FillMetalRandomly();
+
+    OutputLayout();
 
     // free_memory();
 
