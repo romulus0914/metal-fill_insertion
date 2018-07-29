@@ -1288,7 +1288,7 @@ Rect FindMaxSpace(const vector<int> &qw, const int min_width, const int max_widt
     return rt;
 }
 
-void AddMetalFill(const Rect rt, const int layer)
+void AddMetalFill(QuarterWindow &qw, const Rect rt, const int layer)
 {
     Layout metal_fill;
     metal_fill.id = ++total_metals;
@@ -1310,11 +1310,28 @@ void AddMetalFill(const Rect rt, const int layer)
         exit(1);
     }
 
+    long long metal_fill_area = (long long)width_x * width_y;
+    qw.area += metal_fill_area;
+    qw.contribute_metals.emplace_back(metal_fill.id);
+    
+    int size = qw.affected_window.size();
+    for (int i = 0; i < size; i++) {
+        windows[layer - 1][qw.affected_window[i]].area += metal_fill_area;
+        windows[layer - 1][qw.affected_window[i]].area_insufficient -= metal_fill_area;
+        if (windows[layer - 1][qw.affected_window[i]].area_insufficient <= 0) {
+            quarter_windows[layer - 1][windows[layer - 1][qw.affected_window[i]].included_qwindow[0]].violate_count--;
+            quarter_windows[layer - 1][windows[layer - 1][qw.affected_window[i]].included_qwindow[1]].violate_count--;
+            quarter_windows[layer - 1][windows[layer - 1][qw.affected_window[i]].included_qwindow[2]].violate_count--;
+            quarter_windows[layer - 1][windows[layer - 1][qw.affected_window[i]].included_qwindow[3]].violate_count--;
+        }
+    }
+
     layouts.emplace_back(metal_fill);
     metal_fill_layouts.emplace_back(metal_fill);
 }
 
-long long ShrinkMetalFill(Rect rt, long long target_area, const int min_width, const int max_width, const int layer)
+long long ShrinkMetalFill(QuarterWindow &qw, Rect rt, long long target_area,
+                          const int min_width, const int max_width, const int layer)
 {
     int x_width = rt.width_x;
     int y_width = rt.width_y;
@@ -1348,11 +1365,11 @@ long long ShrinkMetalFill(Rect rt, long long target_area, const int min_width, c
     }
     printf(" %d*%d=%lld(%d) ", rt.width_x, rt.width_y, (long long)rt.width_x * rt.width_y, layer);
 
-    AddMetalFill(rt, layer);
+    AddMetalFill(qw, rt, layer);
     return (long long)rt.width_x * rt.width_y;
 }
 
-long long DivideMetalFill(Rect rt, long long target_area,
+long long DivideMetalFill(QuarterWindow &qw, Rect rt, long long target_area,
                           const int min_width, const int max_width, const int min_space, const int layer)
 {
     vector<Rect> rts;
@@ -1431,21 +1448,21 @@ long long DivideMetalFill(Rect rt, long long target_area,
         if (total_fill_area + rect_area > target_area)
             break;
         printf(" (%d, %d, %d, %d) ", rts[i].bl_x, rts[i].bl_y, rts[i].tr_x, rts[i].tr_y);
-        AddMetalFill(rts[i], layer);
+        AddMetalFill(qw, rts[i], layer);
         total_fill_area += rect_area;
     }
     printf(" %lld ", total_fill_area);
     // if break, try to shrink
     if (i != size) {
         printf(" shrink:");
-        total_fill_area += ShrinkMetalFill(rts[i], target_area - total_fill_area, min_width, max_width, layer);
+        total_fill_area += ShrinkMetalFill(qw, rts[i], target_area - total_fill_area, min_width, max_width, layer);
     }
 
     printf(" %lld ", total_fill_area);
     return total_fill_area;
 }
 
-long long MinMetalFill(Rect rt, const int min_width, const int layer)
+long long MinMetalFill(QuarterWindow &qw, Rect rt, const int min_width, const int layer)
 {
     int x_offset = (rt.width_x - min_width) / 2;
     int y_offset = (rt.width_y - min_width) / 2;
@@ -1456,17 +1473,22 @@ long long MinMetalFill(Rect rt, const int min_width, const int layer)
     rt.width_x = min_width;
     rt.width_y = min_width;
 
+    AddMetalFill(qw, rt, layer);
     return (long long)rt.width_x * rt.width_y;
 }
 
-long long UpdateMetalFill(const Rect rt, const int layer)
+long long UpdateMetalFill(QuarterWindow &qw, const Rect rt, const int layer)
 {
-    AddMetalFill(rt, layer);
+    AddMetalFill(qw, rt, layer);
     return (long long)rt.width_x * rt.width_y;
 }
 
 void FillMetalRandomly()
 {
+    // window area;
+    long long w_area = (long long)window_size * window_size;
+    int size = 0;
+
     for (int layer = 1; layer <= total_layers; layer++) {
         vector<Window> &ws = windows[layer - 1];
         vector<QuarterWindow> &qws = quarter_windows[layer - 1];
@@ -1480,57 +1502,92 @@ void FillMetalRandomly()
         long long max_metal_fill = (long long)r.max_fill_width * r.max_fill_width;
 
         int max_qwindows = qwindow_x * qwindow_y;
-        for (int qw_idx = 0; qw_idx < max_qwindows; qw_idx++) {
-            QuarterWindow &qw = qws[qw_idx];
-            long long target_area = min_area - qw.area;
-            // no need to metal fill
-            if (target_area <= 0)
-                continue;
-            printf("%d %lld\n", qw_idx, qw.area);
-
-            vector<Rect> rts;
-            FindSpace(rts, qw, r.min_width, half_min_space);
-
-            int size = rts.size();
-            for (int i = 0; i < size; i++) {
-                Rect metal_fill = rts[i];
-                metal_fill.bl_x += half_min_space;
-                metal_fill.bl_y += half_min_space;
-                metal_fill.tr_x -= half_min_space;
-                metal_fill.tr_y -= half_min_space;
-                metal_fill.width_x = metal_fill.tr_x -  metal_fill.bl_x;
-                metal_fill.width_y = metal_fill.tr_y -  metal_fill.bl_y;
-                long long metal_fill_area = (long long)metal_fill.width_x * metal_fill.width_y;
-                printf("  %lld %lld\n", target_area, metal_fill_area);
-
-                if (target_area < min_metal_fill) {
-                    printf("    min\n");
-                    target_area -= MinMetalFill(metal_fill, r.min_width, layer);
+        while (1) {
+            int max_violate_idx = -1;
+            int max_violate = 0;
+            for (int i = 0; i < max_qwindows; i++) {
+                if (qws[i].violate_count > max_violate) {
+                    max_violate_idx = i;
+                    max_violate = qws[i].violate_count;
                 }
-                else {
-                    if (metal_fill.width_x <= r.max_fill_width && metal_fill.width_y <= r.max_fill_width) {
-                        if (target_area >= metal_fill_area) {
-                            printf("    update\n");
-                            target_area -= UpdateMetalFill(metal_fill, layer);
+            }
+            if (max_violate_idx == -1)
+                break;
+
+            int min_insuff_idx = -1;
+            long long min_insuff = w_area;
+            size = qws[max_violate_idx].affected_window.size();
+            for (int i = 0; i < size; i++) {
+                if (ws[qws[max_violate_idx].affected_window[i]].area_insufficient > 0 &&
+                    ws[qws[max_violate_idx].affected_window[i]].area_insufficient < min_insuff) {
+                    min_insuff_idx = qws[max_violate_idx].affected_window[i];
+                    min_insuff = ws[qws[max_violate_idx].affected_window[i]].area_insufficient;
+                }
+            }
+
+            vector<int> qw_included(ws[min_insuff_idx].included_qwindow.begin(), ws[min_insuff_idx].included_qwindow.end());
+            for (int i = 1; i < 4; i++) {
+                int temp = qw_included[i];
+                int j = i - 1;
+                while (j >= 0 && qws[qw_included[j]].violate_count < qws[temp].violate_count) {
+                    qw_included[j + 1] = qw_included[j];
+                    j--;
+                }
+                qw_included[j + 1] = temp;
+            }
+
+            printf("w:%d %lld\n", min_insuff_idx, min_insuff);
+            long long target_area = min_insuff;
+            for (int i = 0; i < 4; i++) {
+                QuarterWindow &qw = qws[qw_included[i]];
+
+                vector<Rect> rts;
+                FindSpace(rts, qw, r.min_width, half_min_space);
+
+                size = rts.size();
+                for (int i = 0; i < size; i++) {
+                    Rect metal_fill = rts[i];
+                    metal_fill.bl_x += half_min_space;
+                    metal_fill.bl_y += half_min_space;
+                    metal_fill.tr_x -= half_min_space;
+                    metal_fill.tr_y -= half_min_space;
+                    metal_fill.width_x = metal_fill.tr_x -  metal_fill.bl_x;
+                    metal_fill.width_y = metal_fill.tr_y -  metal_fill.bl_y;
+                    long long metal_fill_area = (long long)metal_fill.width_x * metal_fill.width_y;
+                    printf("  %lld %lld\n", target_area, metal_fill_area);
+
+                    if (target_area < min_metal_fill) {
+                        printf("    min ");
+                        target_area -= MinMetalFill(qw, metal_fill, r.min_width, layer);
+                        printf("%lld\n", target_area);
+                    }
+                    else {
+                        if (metal_fill.width_x <= r.max_fill_width && metal_fill.width_y <= r.max_fill_width) {
+                            if (target_area >= metal_fill_area) {
+                                printf("    update\n");
+                                target_area -= UpdateMetalFill(qw, metal_fill, layer);
+                            }
+                            else {
+                                printf("    shrink: ");
+                                target_area -= ShrinkMetalFill(qw, metal_fill, target_area,
+                                                               r.min_width, r.max_fill_width, layer);
+                                printf("\n");
+                            }
                         }
                         else {
-                            printf("    shrink: ");
-                            target_area -= ShrinkMetalFill(metal_fill, target_area, r.min_width, r.max_fill_width, layer);
+                            printf("    divide: ");
+                            target_area -= DivideMetalFill(qw, metal_fill, target_area,
+                                                           r.min_width, r.max_fill_width, r.min_space, layer);
                             printf("\n");
                         }
                     }
-                    else {
-                        printf("    divide: ");
-                        target_area -= DivideMetalFill(metal_fill, target_area,
-                                                    r.min_width, r.max_fill_width, r.min_space, layer);
-                        printf("\n");
-                    }
+
+                    if (target_area <= 0)
+                        break;
                 }
-
                 if (target_area <= 0)
-                    break;
+                        break;
             }
-
             if (target_area > 0) {
                 printf("[Error] target area remaining after metal fill\n");
                 exit(1);
