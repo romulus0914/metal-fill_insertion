@@ -7,8 +7,8 @@
 #include <algorithm>
 #include <utility>
 
-//#include "problem_c.h"
-#include "capacitance.h"
+#include "problem_c.h"
+//#include "capacitance.h"
 
 using namespace std;
 
@@ -64,8 +64,7 @@ void ReadCircuit()
     cb.width_x = cb.tr_x - cb.bl_x;
     cb.width_y = cb.tr_y - cb.bl_y;
 
-    Layout l = {.id = 0, .bl_x = -1, .bl_y = -1, .tr_x = -1, .tr_y = -1, 
-                .net_id = -1, .layer = -1, .type = -1, .isCritical = false};
+    Layout l;
     layouts.emplace_back(l); // dummy layout to align id and index;
     while (file >> l.id >> l.bl_x >> l.bl_y >> l.tr_x >> l.tr_y >> l.net_id >> l.layer >> str) {
         l.bl_x -= cb.bl_x;
@@ -429,18 +428,27 @@ void AnalyzeDensity()
     }
 }
 
-void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, const int min_space)
+void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, const int half_min_space)
 {
-    int actual_min_width = min_width + min_space;
-    if (min_space % 2 == 1)
-        actual_min_width += 1;
+    int actual_min_width = min_width + 2 * half_min_space;
 
-    Rect qw_rect = {.bl_x = qw.bl_x, .bl_y = qw.bl_y, .tr_x = qw.tr_x, .tr_y = qw.tr_y, .width_x = stride, .width_y = stride};
+    Rect qw_rect;
+    qw_rect.bl_x = qw.bl_x;
+    qw_rect.bl_y = qw.bl_y;
+    qw_rect.tr_x = qw.tr_x;
+    qw_rect.tr_y = qw.tr_y;
+    qw_rect.width_x = stride;
+    qw_rect.width_y = stride;
     rts.emplace_back(qw_rect);
 
-    int id = 105;
-    for (int metal_id : qw.contribute_metals) {
-        Layout &temp = layouts[metal_id];
+    int id = -1;
+    int size = qw.contribute_metals.size();
+    for (int i = 0; i < size; i++) {
+        Layout temp = layouts[qw.contribute_metals[i]];
+        temp.bl_x -= half_min_space;
+        temp.bl_y -= half_min_space;
+        temp.tr_x += half_min_space;
+        temp.tr_y += half_min_space;
         if (qw.index == id)
             printf("(%d %d %d %d)\n", temp.bl_x, temp.bl_y, temp.tr_x, temp.tr_y);
         vector<Rect> temp_rts;
@@ -1191,7 +1199,13 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
 
 Rect FindMaxSpace(const vector<int> &qw, const int min_width, const int max_width, const int min_space)
 {
-    Rect rt = {.bl_x = -1, .bl_y = -1, .tr_x = -1, .tr_y = -1, .width_x = -1, .width_y = -1};
+    Rect rt;
+    rt.bl_x = -1;
+    rt.bl_y = -1;
+    rt.tr_x = -1;
+    rt.tr_y = -1;
+    rt.width_x = -1;
+    rt.width_y = -1;
     long long max_area = 0;
     long long temp_area = (long long)stride * stride;
     const int actual_min_width = min_width + 2 * min_space;
@@ -1344,7 +1358,13 @@ long long DivideMetalFill(Rect rt, long long target_area,
     int y_width = rt.width_y;
     int max_width_padding = max_width + min_space;
 
-    Rect r = {.bl_x = -1, .bl_y = -1, .tr_x = -1, .tr_y = -1, .width_x =  max_width, .width_y =  max_width};
+    Rect r;
+    r.bl_x = -1;
+    r.bl_y = -1;
+    r.tr_x = -1;
+    r.tr_y = -1;
+    r.width_x =  max_width;
+    r.width_y =  max_width;
     int x_max_count = x_width / max_width_padding;
     int y_max_count = y_width / max_width_padding;
     // x, y = max width
@@ -1467,7 +1487,7 @@ void FillMetalRandomly()
             printf("%d %lld\n", qw_idx, qw.area);
 
             vector<Rect> rts;
-            FindSpace(rts, qw, r.min_width, r.min_space);
+            FindSpace(rts, qw, r.min_width, half_min_space);
 
             for (Rect metal_fill : rts) {
                 metal_fill.bl_x += half_min_space;
@@ -1517,7 +1537,7 @@ void FillMetalRandomly()
 
 void OutputLayout()
 {
-    ofstream file(path + "circuit_metal-fill.cut");
+    ofstream file(path + output_file);
 
     for (Layout temp : metal_fill_layouts) {
         file << temp.id << " " << temp.bl_x + cb.bl_x << " " << temp.bl_y + cb.bl_y << " "
