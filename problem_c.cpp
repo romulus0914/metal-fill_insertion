@@ -428,6 +428,12 @@ void AnalyzeDensity()
     }
 }
 
+struct larger_rect{
+    bool operator()(Rect r1, Rect r2) const {
+        return r1.width_x * r1.width_y  > r2.width_x * r2.width_y;
+    }
+} LargerRect;
+
 void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, const int half_min_space)
 {
     int actual_min_width = min_width + 2 * half_min_space;
@@ -452,7 +458,9 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
         if (qw.index == id)
             printf("(%d %d %d %d)\n", temp.bl_x, temp.bl_y, temp.tr_x, temp.tr_y);
         vector<Rect> temp_rts;
-        for (Rect rt : rts) {
+        int rts_size = rts.size();
+        for (int j = 0; j < rts_size; j++) {
+            Rect rt = rts[j];
             if (qw.index == id)
                 printf("  (%d %d %d %d)\n", rt.bl_x, rt.bl_y, rt.tr_x, rt.tr_y);
             // if not overlap then add
@@ -1188,13 +1196,7 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
         rts.swap(temp_rts);
     }
 
-    sort(rts.begin(), rts.end(), [](const Rect &r1, const Rect &r2) {
-        return r1.width_x * r1.width_y  > r2.width_x * r2.width_y;
-    });
-
-    if (qw.index == id)
-        for (Rect rt : rts)
-            printf("(%d %d %d %d)\n", rt.bl_x, rt.bl_y, rt.tr_x, rt.tr_y);
+    sort(rts.begin(), rts.end(), LargerRect);
 }
 
 Rect FindMaxSpace(const vector<int> &qw, const int min_width, const int max_width, const int min_space)
@@ -1489,7 +1491,9 @@ void FillMetalRandomly()
             vector<Rect> rts;
             FindSpace(rts, qw, r.min_width, half_min_space);
 
-            for (Rect metal_fill : rts) {
+            int size = rts.size();
+            for (int i = 0; i < size; i++) {
+                Rect metal_fill = rts[i];
                 metal_fill.bl_x += half_min_space;
                 metal_fill.bl_y += half_min_space;
                 metal_fill.tr_x -= half_min_space;
@@ -1539,7 +1543,9 @@ void OutputLayout()
 {
     ofstream file(path + output_file);
 
-    for (Layout temp : metal_fill_layouts) {
+    int size = metal_fill_layouts.size();
+    for (int i = 0; i < size; i++) {
+        Layout &temp = metal_fill_layouts[i];
         file << temp.id << " " << temp.bl_x + cb.bl_x << " " << temp.bl_y + cb.bl_y << " "
              << temp.tr_x + cb.bl_x << " " << temp.tr_y + cb.bl_y << " "
              << temp.net_id << " " << temp.layer << " Fill\n";
