@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -std=c++11 -g
+CXXFLAGS = -std=c++0x -g
 CXXSOURCES = problem_c.cpp
 CXXHEADERS = problem_c.h
 
