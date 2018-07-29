@@ -3,7 +3,7 @@ CXXFLAGS = -std=c++11 -g
 CXXSOURCES = problem_c.cpp
 CXXHEADERS = problem_c.h capacitance.h
 
-TARGET = problem_c
+TARGET = cada064
 
 all::$(TARGET)
 
