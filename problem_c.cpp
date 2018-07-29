@@ -429,20 +429,18 @@ void AnalyzeDensity()
     }
 }
 
-void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, const int half_min_space)
+void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, const int min_space)
 {
-    int actual_min_width = min_width + 2 * half_min_space;
+    int actual_min_width = min_width + min_space;
+    if (min_space % 2 == 1)
+        actual_min_width += 1;
 
     Rect qw_rect = {.bl_x = qw.bl_x, .bl_y = qw.bl_y, .tr_x = qw.tr_x, .tr_y = qw.tr_y, .width_x = stride, .width_y = stride};
     rts.emplace_back(qw_rect);
 
     int id = 105;
     for (int metal_id : qw.contribute_metals) {
-        Layout temp = layouts[metal_id];
-        temp.bl_x -= half_min_space;
-        temp.bl_y -= half_min_space;
-        temp.tr_x += half_min_space;
-        temp.tr_y += half_min_space;
+        Layout &temp = layouts[metal_id];
         if (qw.index == id)
             printf("(%d %d %d %d)\n", temp.bl_x, temp.bl_y, temp.tr_x, temp.tr_y);
         vector<Rect> temp_rts;
@@ -1469,7 +1467,7 @@ void FillMetalRandomly()
             printf("%d %lld\n", qw_idx, qw.area);
 
             vector<Rect> rts;
-            FindSpace(rts, qw, r.min_width, half_min_space);
+            FindSpace(rts, qw, r.min_width, r.min_space);
 
             for (Rect metal_fill : rts) {
                 metal_fill.bl_x += half_min_space;
@@ -1500,7 +1498,7 @@ void FillMetalRandomly()
                     else {
                         printf("    divide: ");
                         target_area -= DivideMetalFill(metal_fill, target_area,
-                                                       r.min_width, r.max_fill_width, r.min_space, layer);
+                                                    r.min_width, r.max_fill_width, r.min_space, layer);
                         printf("\n");
                     }
                 }
@@ -1559,6 +1557,8 @@ int main(int argc, char **argv)
         exit(1);
     }
     config_file = argv[1];
+    path = config_file.substr(0, config_file.find_last_of("/") + 1);
+
     ReadConfig();
     ReadCircuit();
     ReadProcess();

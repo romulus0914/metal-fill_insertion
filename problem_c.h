@@ -97,7 +97,7 @@ typedef struct fringe_table {
     std::vector<double> b;
 } FringeTable; // including special case lateral
 
-std::string path = "iccad2018-contest-master/circuit1/";
+std::string path;
 
 // config file
 std::string config_file, circuit_file, output_file, process_file, rule_file;
@@ -126,6 +126,7 @@ int qwindow_x, qwindow_y;
 
 // rule file
 std::vector<Rule> rules;
+std::vector<long long> min_area_per_window;
 
 // metal linked list, head nodes of each layer
 // std::vector<Metal*> metals;
