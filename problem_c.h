@@ -7,6 +7,11 @@
 #include <unordered_set>
 #include <unordered_map>
 
+typedef struct line {
+    int left; // bottom
+    int right; // top
+} Line;
+
 typedef struct rect {
     int bl_x;
     int bl_y;
