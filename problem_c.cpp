@@ -7,8 +7,8 @@
 #include <algorithm>
 #include <utility>
 
-#include "problem_c.h"
-//#include "capacitance.h"
+//#include "problem_c.h"
+#include "capacitance.h"
 
 using namespace std;
 
@@ -18,26 +18,26 @@ void ReadConfig()
 
     string str;
     while (file >> str) {
-        if (str == "design:")
+        if (str == "design:") {
             file >>  circuit_file;
-        else if (str == "output:")
+        } else if (str == "output:") {
             file >> output_file;
-        else if (str == "rule_file:")
+        } else if (str == "rule_file:") {
             file >> rule_file;
-        else if (str == "process_file:")
+        } else if (str == "process_file:") {
             file >> process_file;
-        else if (str == "critical_nets:") {
+        } else if (str == "critical_nets:") {
             getline(file, str);
             char *ch = strtok((char *)str.c_str(), " ");
             while (ch != NULL) {
                 critical_nets.insert(atoi(ch));
                 ch = strtok(NULL, " ");
             }
-        }
-        else if (str == "power_nets:")
+        } else if (str == "power_nets:") {
             file >> power_net;
-        else if (str == "ground_net:")
+        } else if (str == "ground_net:") {
             file >> ground_net;
+        }
     }
 
     file.close();
@@ -79,10 +79,6 @@ void ReadCircuit()
             l.type = 2;
         else if (str == "Fill")
             l.type = 3;
-        else {
-            cout << "Invalid Polygon Type: " << str << '\n';
-            exit(1);
-        }
         l.isCritical = critical_nets.find(l.net_id) != critical_nets.end();
 
         layouts.emplace_back(l);
@@ -428,13 +424,14 @@ void AnalyzeDensity()
     }
 }
 
-struct larger_rect{
+struct larger_rect {
     bool operator()(Rect r1, Rect r2) const {
-        return r1.width_x * r1.width_y  > r2.width_x * r2.width_y;
+        return (long long)r1.width_x * r1.width_y  > (long long)r2.width_x * r2.width_y;
     }
 } LargerRect;
 
-void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, const int half_min_space)
+void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const vector<int> contribute_metals,
+               const int min_width, const int half_min_space)
 {
     int actual_min_width = min_width + 2 * half_min_space;
 
@@ -448,9 +445,9 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
     rts.emplace_back(qw_rect);
 
     int id = -1;
-    int size = qw.contribute_metals.size();
+    int size = contribute_metals.size();
     for (int i = 0; i < size; i++) {
-        Layout temp = layouts[qw.contribute_metals[i]];
+        Layout temp = layouts[contribute_metals[i]];
         temp.bl_x -= half_min_space;
         temp.bl_y -= half_min_space;
         temp.tr_x += half_min_space;
@@ -479,8 +476,8 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
                 printf("  cond: %d\n", condition);
             
             Rect rt_new;
-            // middle (rt.bl_x < temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y > temp.tr_y)
             if (condition == 0) {
+                // middle (rt.bl_x < temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y > temp.tr_y)
                 vector<Rect> temp1;
                 vector<Rect> temp2;
                 long long valid_area1 = 0;
@@ -571,9 +568,8 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
                     temp_rts.insert(temp_rts.end(), temp1.begin(), temp1.end());
                 else
                     temp_rts.insert(temp_rts.end(), temp2.begin(), temp2.end());
-            }
-            // left middle (rt.bl_x >= temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y > temp.tr_y)
-            else if (condition == 1) {
+            } else if (condition == 1) {
+                // left middle (rt.bl_x >= temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y > temp.tr_y)
                 vector<Rect> temp1;
                 vector<Rect> temp2;
                 long long valid_area1 = 0;
@@ -645,9 +641,8 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
                     temp_rts.insert(temp_rts.end(), temp1.begin(), temp1.end());
                 else
                     temp_rts.insert(temp_rts.end(), temp2.begin(), temp2.end());
-            }
-            // bottom middle (rt.bl_x < temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y > temp.tr_y)
-            else if (condition == 2) {
+            } else if (condition == 2) {
+                // bottom middle (rt.bl_x < temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y > temp.tr_y)
                 vector<Rect> temp1;
                 vector<Rect> temp2;
                 long long valid_area1 = 0;
@@ -719,9 +714,8 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
                     temp_rts.insert(temp_rts.end(), temp1.begin(), temp1.end());
                 else
                     temp_rts.insert(temp_rts.end(), temp2.begin(), temp2.end());
-            }
-            // bottom left (rt.bl_x >= temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y > temp.tr_y)
-            else if (condition == 3) {
+            } else if (condition == 3) {
+                // bottom left (rt.bl_x >= temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y > temp.tr_y)
                 vector<Rect> temp1;
                 vector<Rect> temp2;
                 long long valid_area1 = 0;
@@ -777,9 +771,8 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
                     temp_rts.insert(temp_rts.end(), temp1.begin(), temp1.end());
                 else
                     temp_rts.insert(temp_rts.end(), temp2.begin(), temp2.end());
-            }
-            // right middle (rt.bl_x < temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y > temp.tr_y)
-            else if (condition == 4) {
+            } else if (condition == 4) {
+                // right middle (rt.bl_x < temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y > temp.tr_y)
                 vector<Rect> temp1;
                 vector<Rect> temp2;
                 long long valid_area1 = 0;
@@ -851,9 +844,8 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
                     temp_rts.insert(temp_rts.end(), temp1.begin(), temp1.end());
                 else
                     temp_rts.insert(temp_rts.end(), temp2.begin(), temp2.end());
-            }
-            // horizontal middle (rt.bl_x >= temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y > temp.tr_y)
-            else if (condition == 5) {
+            } else if (condition == 5) {
+                // horizontal middle (rt.bl_x >= temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y > temp.tr_y)
                 // two new rects
                 // top
                 rt_new.bl_x = rt.bl_x;
@@ -871,9 +863,8 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
                 if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
                     temp_rts.emplace_back(rt_new);
                     
-            }
-            // bottom right (rt.bl_x < temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y > temp.tr_y)
-            else if (condition == 6) {
+            } else if (condition == 6) {
+                // bottom right (rt.bl_x < temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y > temp.tr_y)
                 vector<Rect> temp1;
                 vector<Rect> temp2;
                 long long valid_area1 = 0;
@@ -929,9 +920,8 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
                     temp_rts.insert(temp_rts.end(), temp1.begin(), temp1.end());
                 else
                     temp_rts.insert(temp_rts.end(), temp2.begin(), temp2.end());
-            }
-            // bottom (rt.bl_x >= temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y > temp.tr_y)
-            else if (condition == 7) {
+            } else if (condition == 7) {
+                // bottom (rt.bl_x >= temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y > temp.tr_y)
                 // one new rect
                 // top
                 rt_new.bl_x = rt.bl_x;
@@ -942,9 +932,8 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
                 rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
                 if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
                     temp_rts.emplace_back(rt_new);
-            }
-            // top middle (rt.bl_x < temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y <= temp.tr_y)
-            else if (condition == 8) {
+            } else if (condition == 8) {
+                // top middle (rt.bl_x < temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y <= temp.tr_y)
                 vector<Rect> temp1;
                 vector<Rect> temp2;
                 long long valid_area1 = 0;
@@ -1016,9 +1005,8 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
                     temp_rts.insert(temp_rts.end(), temp1.begin(), temp1.end());
                 else
                     temp_rts.insert(temp_rts.end(), temp2.begin(), temp2.end());
-            }
-            // top left (rt.bl_x >= temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y <= temp.tr_y)
-            else if (condition == 9) {
+            } else if (condition == 9) {
+                // top left (rt.bl_x >= temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y <= temp.tr_y)
                 vector<Rect> temp1;
                 vector<Rect> temp2;
                 long long valid_area1 = 0;
@@ -1074,9 +1062,8 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
                     temp_rts.insert(temp_rts.end(), temp1.begin(), temp1.end());
                 else
                     temp_rts.insert(temp_rts.end(), temp2.begin(), temp2.end());
-            }
-            // vertical middle (rt.bl_x < temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y <= temp.tr_y)
-            else if (condition == 10) {
+            } else if (condition == 10) {
+                // vertical middle (rt.bl_x < temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y <= temp.tr_y)
                 // two new rects
                 // left
                 rt_new.bl_x = rt.bl_x;
@@ -1093,9 +1080,8 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
                 rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
                 if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
                     temp_rts.emplace_back(rt_new);
-            }
-            // left (rt.bl_x >= temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y <= temp.tr_y)
-            else if (condition == 11) {
+            } else if (condition == 11) {
+                // left (rt.bl_x >= temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y <= temp.tr_y)
                 // one new rect
                 // right
                 rt_new.bl_x = temp.tr_x;
@@ -1106,9 +1092,8 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
                 rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
                 if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
                     temp_rts.emplace_back(rt_new);
-            }
-            // top right (rt.bl_x < temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y <= temp.tr_y)
-            else if (condition == 12) {
+            } else if (condition == 12) {
+                // top right (rt.bl_x < temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y <= temp.tr_y)
                 vector<Rect> temp1;
                 vector<Rect> temp2;
                 long long valid_area1 = 0;
@@ -1164,9 +1149,8 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
                     temp_rts.insert(temp_rts.end(), temp1.begin(), temp1.end());
                 else
                     temp_rts.insert(temp_rts.end(), temp2.begin(), temp2.end());
-            }
-            // top (rt.bl_x >= temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y <= temp.tr_y)
-            else if (condition == 13) {
+            } else if (condition == 13) {
+                // top (rt.bl_x >= temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y <= temp.tr_y)
                 // one new rect
                 // bottom
                 rt_new.bl_x = rt.bl_x;
@@ -1177,9 +1161,8 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
                 rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
                 if (rt_new.width_x >= actual_min_width && rt_new.width_y >= actual_min_width)
                     temp_rts.emplace_back(rt_new);
-            }
-            // right (rt.bl_x < temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y <= temp.tr_y)
-            else if (condition == 14) {
+            } else if (condition == 14) {
+                // right (rt.bl_x < temp.bl_x && rt.bl_y >= temp.bl_y && rt.tr_x <= temp.tr_x && rt.tr_y <= temp.tr_y)
                 // one new rect
                 // left
                 rt_new.bl_x = rt.bl_x;
@@ -1199,94 +1182,95 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const int min_width, 
     sort(rts.begin(), rts.end(), LargerRect);
 }
 
-Rect FindMaxSpace(const vector<int> &qw, const int min_width, const int max_width, const int min_space)
-{
-    Rect rt;
-    rt.bl_x = -1;
-    rt.bl_y = -1;
-    rt.tr_x = -1;
-    rt.tr_y = -1;
-    rt.width_x = -1;
-    rt.width_y = -1;
-    long long max_area = 0;
-    long long temp_area = (long long)stride * stride;
-    const int actual_min_width = min_width + 2 * min_space;
-    const int actual_max_width = max_width + 2 * min_space;
+// Rect FindMaxSpace(const vector<int> &qw, const int min_width, const int max_width, const int min_space)
+// {
+//     Rect rt;
+//     rt.bl_x = -1;
+//     rt.bl_y = -1;
+//     rt.tr_x = -1;
+//     rt.tr_y = -1;
+//     rt.width_x = -1;
+//     rt.width_y = -1;
+//     long long max_area = 0;
+//     long long temp_area = (long long)stride * stride;
+//     const int actual_min_width = min_width + 2 * min_space;
+//     const int actual_max_width = max_width + 2 * min_space;
 
-    vector<int> wl(stride, 0);
-    vector<int> wr(stride, 0);
-    vector<int> h(stride, 0);
-    vector<int> l(stride, 0);
-    vector<int> r(stride, 0);
+//     vector<int> wl(stride, 0);
+//     vector<int> wr(stride, 0);
+//     vector<int> h(stride, 0);
+//     vector<int> l(stride, 0);
+//     vector<int> r(stride, 0);
 
-    for (int y = 0; y < stride; y++) {
-        // search how far it can extend on left
-        for (int x = 0; x < stride; x++) {
-            if (!qw[y * stride + x]) {
-                if (x == 0)
-                    wl[0] = 1;
-                else
-                    wl[x] = wl[x - 1] + 1;
-            }
-            else
-                wl[x] = 0;
-        }
-        // search how far it can extend on right
-        for (int x = stride - 1; x >= 0; x--) {
-            if (!qw[y * stride + x]) {
-                if (x == stride - 1)
-                    wr[stride - 1] = 1;
-                else
-                    wr[x] = wr[x + 1] + 1;
-            }
-            else
-                wr[x] = 0;
-        }
-        // search how far it can extend on top
-        for (int x = 0; x < stride; x++) {
-            if (!qw[y * stride + x])
-                h[x]++;
-            else
-                h[x] = 0;
-        }
-        // search how far it can extend on left after reaching top
-        for (int x = 0; x < stride; x++) {
-            if (l[x] == 0)
-                l[x] = wl[x];
-            else
-                l[x] = min(l[x], wl[x]);
-        }
-        // search how far it can extend on right after reaching top
-        for (int x = 0; x < stride; x++) {
-            if (r[x] == 0)
-                r[x] = wr[x];
-            else
-                r[x] = min(r[x], wr[x]);
-        }
+//     for (int y = 0; y < stride; y++) {
+//         // search how far it can extend on left
+//         for (int x = 0; x < stride; x++) {
+//             if (!qw[y * stride + x]) {
+//                 if (x == 0)
+//                     wl[0] = 1;
+//                 else
+//                     wl[x] = wl[x - 1] + 1;
+//             } else {
+//                 wl[x] = 0;
+//             }
+//         }
+//         // search how far it can extend on right
+//         for (int x = stride - 1; x >= 0; x--) {
+//             if (!qw[y * stride + x]) {
+//                 if (x == stride - 1)
+//                     wr[stride - 1] = 1;
+//                 else
+//                     wr[x] = wr[x + 1] + 1;
+//             }
+//             else {
+//                 wr[x] = 0;
+//             }
+//         }
+//         // search how far it can extend on top
+//         for (int x = 0; x < stride; x++) {
+//             if (!qw[y * stride + x])
+//                 h[x]++;
+//             else
+//                 h[x] = 0;
+//         }
+//         // search how far it can extend on left after reaching top
+//         for (int x = 0; x < stride; x++) {
+//             if (l[x] == 0)
+//                 l[x] = wl[x];
+//             else
+//                 l[x] = min(l[x], wl[x]);
+//         }
+//         // search how far it can extend on right after reaching top
+//         for (int x = 0; x < stride; x++) {
+//             if (r[x] == 0)
+//                 r[x] = wr[x];
+//             else
+//                 r[x] = min(r[x], wr[x]);
+//         }
 
-        // search for the smallest matching area
-        for (int x = 0; x < stride; x++) {
-            int width1 = l[x] + r[x] - 1;
-            int width2 = h[x];
-            // no constraint on max_width because empty space may always be larger than max_width
-            if (width1 >= actual_min_width && width2 >= actual_min_width) {
-                long long area = (long long)(width1 - 2 * min_space) * (width2 - 2 * min_space);
-                if (area > max_area) {
-                    rt.bl_x = x - l[x] + 1 + min_space;
-                    rt.bl_y = y - h[x] + 1 + min_space;
-                    rt.tr_x = x + r[x] - 1 - min_space;
-                    rt.tr_y = y - min_space;
-                    max_area = area;
-                }
-            }
-        }
-    }
+//         // search for the smallest matching area
+//         for (int x = 0; x < stride; x++) {
+//             int width1 = l[x] + r[x] - 1;
+//             int width2 = h[x];
+//             // no constraint on max_width because empty space may always be larger than max_width
+//             if (width1 >= actual_min_width && width2 >= actual_min_width) {
+//                 long long area = (long long)(width1 - 2 * min_space) * (width2 - 2 * min_space);
+//                 if (area > max_area) {
+//                     rt.bl_x = x - l[x] + 1 + min_space;
+//                     rt.bl_y = y - h[x] + 1 + min_space;
+//                     rt.tr_x = x + r[x] - 1 - min_space;
+//                     rt.tr_y = y - min_space;
+//                     max_area = area;
+//                 }
+//             }
+//         }
+//     }
 
-    rt.width_x = rt.tr_x - rt.bl_x;
-    rt.width_y = rt.tr_y - rt.bl_y;
+//     rt.width_x = rt.tr_x - rt.bl_x;
+//     rt.width_y = rt.tr_y - rt.bl_y;
 
-    return rt;
-}
+//     return rt;
+// }
 
 void AddMetalFill(QuarterWindow &qw, const Rect rt, const int layer)
 {
@@ -1542,7 +1526,20 @@ void FillMetalRandomly()
                 QuarterWindow &qw = qws[qw_included[i]];
 
                 vector<Rect> rts;
-                FindSpace(rts, qw, r.min_width, half_min_space);
+                vector<int> contribute_metals(qw.contribute_metals.begin(), qw.contribute_metals.end());
+                if (qw.index - 1 >= 0)
+                    contribute_metals.insert(contribute_metals.end(), 
+                                            qws[qw.index - 1].contribute_metals.begin(), qws[qw.index - 1].contribute_metals.end());
+                if (qw.index - qwindow_y >= 0)
+                    contribute_metals.insert(contribute_metals.end(), 
+                                            qws[qw.index - qwindow_y].contribute_metals.begin(), qws[qw.index - qwindow_y].contribute_metals.end());
+                if (qw.index + 1 < max_qwindows)
+                    contribute_metals.insert(contribute_metals.end(), 
+                                            qws[qw.index + 1].contribute_metals.begin(), qws[qw.index + 1].contribute_metals.end());
+                if (qw.index + qwindow_y < max_qwindows)
+                    contribute_metals.insert(contribute_metals.end(), 
+                                            qws[qw.index + qwindow_y].contribute_metals.begin(), qws[qw.index + qwindow_y].contribute_metals.end());
+                FindSpace(rts, qw, contribute_metals, r.min_width, half_min_space);
 
                 size = rts.size();
                 for (int i = 0; i < size; i++) {
@@ -1560,21 +1557,18 @@ void FillMetalRandomly()
                         printf("    min ");
                         target_area -= MinMetalFill(qw, metal_fill, r.min_width, layer);
                         printf("%lld\n", target_area);
-                    }
-                    else {
+                    } else {
                         if (metal_fill.width_x <= r.max_fill_width && metal_fill.width_y <= r.max_fill_width) {
                             if (target_area >= metal_fill_area) {
                                 printf("    update\n");
                                 target_area -= UpdateMetalFill(qw, metal_fill, layer);
-                            }
-                            else {
+                            } else {
                                 printf("    shrink: ");
                                 target_area -= ShrinkMetalFill(qw, metal_fill, target_area,
                                                                r.min_width, r.max_fill_width, layer);
                                 printf("\n");
                             }
-                        }
-                        else {
+                        } else {
                             printf("    divide: ");
                             target_area -= DivideMetalFill(qw, metal_fill, target_area,
                                                            r.min_width, r.max_fill_width, r.min_space, layer);
@@ -1652,7 +1646,7 @@ int main(int argc, char **argv)
     // initialize cap table (symmetric lower traingular matrix)
     // long long total_map_size = total_metals * (total_metals + 1) / 2;
     // for (long long i = 0; i < total_map_size; i++)
-    //     cap[i] = 0;
+    //     cap[i] = -1;
     // CalculateAreaCapacitance();
     // CalculateLateralCapacitance();
     // CalculateFringeCapacitance();
