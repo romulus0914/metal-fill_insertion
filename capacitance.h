@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include "problem_c.h"
 
 using namespace std;
@@ -24,8 +26,7 @@ double CalculateCouplingCapacitance(string type,int layer1, int layer2, double p
         }
         int last = size - 1;
         return (atbl.a[last] * atbl.s[last] + atbl.b[last]) * atbl.s[last] * (param1 / atbl.s[last]);
-    }
-    else if (type == "lateral") {
+    } else if (type == "lateral") {
         const FringeTable &ltbl = fringe_table_map[fringe_tables[layer1 * total_layers + layer1 - 1]]; // layer1 == layer2
         int size = ltbl.d.size();
         for (int i = 0; i < size; i++) {
@@ -37,8 +38,7 @@ double CalculateCouplingCapacitance(string type,int layer1, int layer2, double p
             }
         }
         return 0.0;
-    }
-    else if (type == "fringe") {
+    } else if (type == "fringe") {
         const FringeTable &ftbl1 = fringe_table_map[fringe_tables[layer1 * total_layers + layer2 - 1]];
         const FringeTable &ftbl2 = fringe_table_map[fringe_tables[layer2 * total_layers + layer1 - 1]];
         double coupling_cap = 0.0;
@@ -51,8 +51,7 @@ double CalculateCouplingCapacitance(string type,int layer1, int layer2, double p
             if (i != 0 && param1 < ftbl2.d[i])
                 return coupling_cap + (ftbl2.a[i - 1] * param1 + ftbl2.b[i - 1]) * param2;
         return coupling_cap;
-    }
-    else {
+    } else {
         printf("[Error] undefined coupling capcitance type\n");
         exit(1);
     }
@@ -69,30 +68,327 @@ long long IdToIndex(int id1, int id2)
         return (1 + id1) * id1 / 2 + id2;
 }
 
-long long CalculateShieldingAreaCap(vector<int> &area, const Layout &cur_metal, const Layout &temp,
-                               int bl_x, int bl_y, int tr_x, int tr_y)
+long long AreaShielding(vector<Rect> &rts, const Layout &temp)
 {
-    long long actual_area = 0;
-    
-    int x_width = cur_metal.tr_x - cur_metal.bl_x;
-    for (int y = bl_y; y < tr_y; y++) {
-        for (int x = bl_x; x < tr_x; x++) {
-            if (area[y * x_width + x] == 0) {
-                actual_area++;
-                area[y * x_width + x] = 1;
-            }
+    vector<Rect> temp_rts;
+    // overlap area
+    long long area = 0;
+
+    int size = rts.size();
+    for (int i = 0; i < size; i++) {
+        Rect &rt = rts[i];
+        // if not overlap then add
+        if (rt.bl_x >= temp.tr_x || rt.tr_x <= temp.bl_x || rt.bl_y >= temp.tr_y || rt.tr_y <= temp.bl_y) {
+            temp_rts.emplace_back(rt);
+            continue;
         }
+
+        // intersect types
+        int bit0 = rt.bl_x < temp.bl_x ? 0 : 1;
+        int bit1 = rt.bl_y < temp.bl_y ? 0 : 2;
+        int bit2 = rt.tr_x > temp.tr_x ? 0 : 4;
+        int bit3 = rt.tr_y > temp.tr_y ? 0 : 8;
+        int condition = bit0 + bit1 + bit2 + bit3;
+
+        Rect rt_new;
+        if (condition == 0) {
+            // middle
+            // top
+            rt_new.bl_x = rt.bl_x;
+            rt_new.bl_y = temp.tr_y;
+            rt_new.tr_x = rt.tr_x;
+            rt_new.tr_y = rt.tr_y;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+            // bottom
+            rt_new.bl_y = rt.bl_y;
+            rt_new.tr_y = temp.bl_y;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+            // left
+            rt_new.bl_x = rt.bl_x;
+            rt_new.bl_y = temp.bl_y;
+            rt_new.tr_x = temp.bl_x;
+            rt_new.tr_y = temp.tr_y;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+            // right
+            rt_new.bl_x = temp.tr_x;
+            rt_new.tr_x = rt.tr_x;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            temp_rts.emplace_back(rt_new);
+        } else if (condition == 1) {
+            // left middle
+            // top
+            rt_new.bl_x = rt.bl_x;
+            rt_new.bl_y = temp.tr_y;
+            rt_new.tr_x = rt.tr_x;
+            rt_new.tr_y = rt.tr_y;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+            // bottom
+            rt_new.bl_y = rt.bl_y;
+            rt_new.tr_y = temp.bl_y;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+            // right
+            rt_new.bl_x = temp.tr_x;
+            rt_new.bl_y = temp.bl_y;
+            rt_new.tr_x = rt.tr_x;
+            rt_new.tr_y = temp.tr_y;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+        } else if (condition == 2) {
+            // bottom middle
+            // top
+            rt_new.bl_x = rt.bl_x;
+            rt_new.bl_y = temp.tr_y;
+            rt_new.tr_x = rt.tr_x;
+            rt_new.tr_y = rt.tr_y;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+            // left
+            rt_new.bl_x = rt.bl_x;
+            rt_new.bl_y = rt.bl_y;
+            rt_new.tr_x = temp.bl_x;
+            rt_new.tr_y = temp.tr_y;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+            // right
+            rt_new.bl_x = temp.tr_x;
+            rt_new.tr_x = rt.tr_x;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            temp_rts.emplace_back(rt_new);
+        } else if (condition == 3) {
+            // bottom left
+            // top
+            rt_new.bl_x = rt.bl_x;
+            rt_new.bl_y = temp.tr_y;
+            rt_new.tr_x = rt.tr_x;
+            rt_new.tr_y = rt.tr_y;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+            // bottom
+            rt_new.bl_x = temp.tr_x;
+            rt_new.bl_y = rt.bl_y;
+            rt_new.tr_x = rt.tr_x;
+            rt_new.tr_y = temp.tr_y;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+        } else if (condition == 4) {
+            // right middle
+            // top
+            rt_new.bl_x = rt.bl_x;
+            rt_new.bl_y = temp.tr_y;
+            rt_new.tr_x = rt.tr_x;
+            rt_new.tr_y = rt.tr_y;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+            // bottom
+            rt_new.bl_y = rt.bl_y;
+            rt_new.tr_y = temp.bl_y;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+            // left
+            rt_new.bl_x = rt.bl_x;
+            rt_new.bl_y = temp.bl_y;
+            rt_new.tr_x = temp.bl_x;
+            rt_new.tr_y = temp.tr_y;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+        } else if (condition == 5) {
+            // horizontal middle
+            // top
+            rt_new.bl_x = rt.bl_x;
+            rt_new.bl_y = temp.tr_y;
+            rt_new.tr_x = rt.tr_x;
+            rt_new.tr_y =  rt.tr_y;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+            // bottom
+            rt_new.bl_y = rt.bl_y;
+            rt_new.tr_y = temp.bl_y;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+                
+        } else if (condition == 6) {
+            // bottom right
+            vector<Rect> temp1;
+            vector<Rect> temp2;
+            long long valid_area1 = 0;
+            long long valid_area2 = 0;
+            // two new rects
+            // top
+            rt_new.bl_x = rt.bl_x;
+            rt_new.bl_y = temp.tr_y;
+            rt_new.tr_x = rt.tr_x;
+            rt_new.tr_y = rt.tr_y;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+            // bottom
+            rt_new.bl_x = rt.bl_x;
+            rt_new.bl_y = rt.bl_y;
+            rt_new.tr_x = temp.bl_x;
+            rt_new.tr_y = temp.tr_y;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+        } else if (condition == 7) {
+            // bottom
+            // top
+            rt_new.bl_x = rt.bl_x;
+            rt_new.bl_y = temp.tr_y;
+            rt_new.tr_x = rt.tr_x;
+            rt_new.tr_y = rt.tr_y;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+        } else if (condition == 8) {
+            // top middle
+            // left
+            rt_new.bl_x = rt.bl_x;
+            rt_new.bl_y = temp.bl_y;
+            rt_new.tr_x = temp.bl_x;
+            rt_new.tr_y = rt.tr_y;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+            // right
+            rt_new.bl_x = temp.tr_x;
+            rt_new.tr_x = rt.tr_x;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            temp_rts.emplace_back(rt_new);
+            // bottom
+            rt_new.bl_x = rt.bl_x;
+            rt_new.bl_y = rt.bl_y;
+            rt_new.tr_x = rt.tr_x;
+            rt_new.tr_y = temp.bl_y;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+        } else if (condition == 9) {
+            // top left
+            // top
+            rt_new.bl_x = temp.tr_x;
+            rt_new.bl_y = temp.bl_y;
+            rt_new.tr_x = rt.tr_x;
+            rt_new.tr_y = rt.tr_y;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+            // bottom
+            rt_new.bl_x = rt.bl_x;
+            rt_new.bl_y = rt.bl_y;
+            rt_new.tr_x = rt.tr_x;
+            rt_new.tr_y = temp.bl_y;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+        } else if (condition == 10) {
+            // vertical middle
+            // left
+            rt_new.bl_x = rt.bl_x;
+            rt_new.bl_y = rt.bl_y;
+            rt_new.tr_x = temp.bl_x;
+            rt_new.tr_y = rt.tr_y;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+            // right
+            rt_new.bl_x = temp.tr_x;
+            rt_new.tr_x = rt.tr_x;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            temp_rts.emplace_back(rt_new);
+        } else if (condition == 11) {
+            // left
+            // right
+            rt_new.bl_x = temp.tr_x;
+            rt_new.bl_y = rt.bl_y;
+            rt_new.tr_x = rt.tr_x;
+            rt_new.tr_y = rt.tr_y;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+        } else if (condition == 12) {
+            // top right
+            // top
+            rt_new.bl_x = rt.bl_x;
+            rt_new.bl_y = temp.bl_y;
+            rt_new.tr_x = temp.bl_x;
+            rt_new.tr_y = rt.tr_y;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+            // bottom
+            rt_new.bl_x = rt.bl_x;
+            rt_new.bl_y = rt.bl_y;
+            rt_new.tr_x = rt.tr_x;
+            rt_new.tr_y = temp.bl_y;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+        } else if (condition == 13) {
+            // top
+            // bottom
+            rt_new.bl_x = rt.bl_x;
+            rt_new.bl_y = rt.bl_y;
+            rt_new.tr_x = rt.tr_x;
+            rt_new.tr_y = temp.bl_y;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+        } else if (condition == 14) {
+            // right
+            // one new rect
+            // left
+            rt_new.bl_x = rt.bl_x;
+            rt_new.bl_y = rt.bl_y;
+            rt_new.tr_x = temp.bl_x;
+            rt_new.tr_y = rt.tr_y;
+            rt_new.width_x = rt_new.tr_x - rt_new.bl_x;
+            rt_new.width_y = rt_new.tr_y - rt_new.bl_y;
+            temp_rts.emplace_back(rt_new);
+        }
+
+        // overlap area
+        int bl_x = temp.bl_x > rt.bl_x ? temp.bl_x : rt.bl_x;
+        int bl_y = temp.bl_y > rt.bl_y ? temp.bl_y : rt.bl_y;
+        int tr_x = temp.tr_x < rt.tr_x ? temp.tr_x : rt.tr_x;
+        int tr_y = temp.tr_y < rt.tr_y ? temp.tr_y : rt.tr_y;
+        area += (long long)(tr_x - bl_x) * (tr_y - bl_y);
     }
 
+    rts.swap(temp_rts);
+    return area;
+}
+
+void CalculateShieldingAreaCap(const Layout &cur_metal, const Layout &temp, long long area)
+{
     // area capacitance
     double area_cap = 0.0;
     // metals with same net id do not have coupling capacitance (but still shield?)
-    if (cur_metal.net_id != temp.net_id && actual_area != 0)
-        area_cap = CalculateCouplingCapacitance("area", cur_metal.layer, temp.layer, actual_area, actual_area);
+    if (cur_metal.net_id != temp.net_id && area != 0)
+        area_cap = CalculateCouplingCapacitance("area", cur_metal.layer, temp.layer, area, area);
     cap[IdToIndex(cur_metal.id - 1, temp.id - 1)] = area_cap;
-    
-    return actual_area;
 }
+
+struct area_order {
+    bool operator()(int metal1, int metal2) const {
+        return layouts[metal1].layer > layouts[metal2].layer;
+    }
+} AreaOrder;
 
 void CalculateAreaCapacitance()
 {
@@ -117,59 +413,125 @@ void CalculateAreaCapacitance()
             }
         }
 
-        // area remained without shielding
-        long long remaining_area = (cur_metal.tr_x - cur_metal.bl_x) * (cur_metal.tr_y - cur_metal.bl_y);
+        // set can't sort
+        vector<int> cand_metals(candidate_metals.begin(), candidate_metals.end());
+        // the nearer of layer to cur_metal, the sooner the metal should be calculated
+        sort(cand_metals.begin(), cand_metals.end(), AreaOrder);
         
+        vector<Rect> rts;
+        Rect rt;
+        long long area = 0;
+        
+        rt.bl_x = cur_metal.bl_x;
+        rt.bl_y = cur_metal.bl_y;
+        rt.tr_x = cur_metal.tr_x;
+        rt.tr_y = cur_metal.tr_y;
+        rt.width_x = rt.tr_x - rt.bl_x;
+        rt.width_y = rt.tr_y - rt.bl_y;
+        rts.emplace_back(rt);
         if (cur_metal.layer != 1) {
-            vector<int> area(remaining_area, 0);
-            for (int metal_id : candidate_metals) {
-                const Layout &temp = layouts[metal_id];
+            for (vector<int>::iterator it = cand_metals.begin(); it != cand_metals.end(); it++) {
+                const Layout &temp = layouts[*it];
 
                 // metals that do not intersect
                 if (temp.tr_x <= cur_metal.bl_x || temp.bl_x >= cur_metal.tr_x ||
                     temp.bl_y >= cur_metal.tr_y || temp.tr_y <= cur_metal.bl_y)
                     continue;
-                
-                // intersect coordinate
-                int bl_x = cur_metal.bl_x <= temp.bl_x ? temp.bl_x - cur_metal.bl_x : cur_metal.bl_x - cur_metal.bl_x;
-                int bl_y = cur_metal.bl_y <= temp.bl_y ? temp.bl_y - cur_metal.bl_y : cur_metal.bl_y - cur_metal.bl_y;
-                int tr_x = cur_metal.tr_x >= temp.tr_x ? temp.tr_x - cur_metal.bl_x : cur_metal.tr_x - cur_metal.bl_x;
-                int tr_y = cur_metal.tr_y >= temp.tr_y ? temp.tr_y - cur_metal.bl_y : cur_metal.tr_y - cur_metal.bl_y;
-                
-                remaining_area -= CalculateShieldingAreaCap(area, cur_metal, temp, bl_x, bl_y, tr_x, tr_y);
-                if (remaining_area == 0)
-                    break;
+
+                area = AreaShielding(rts, temp);
+                CalculateShieldingAreaCap(cur_metal, temp, area);
             }
         }
 
         // area cap to ground(layer 0)
         double area_cap = 0.0;
-        if (remaining_area != 0)
-            area_cap = CalculateCouplingCapacitance("area", cur_metal.layer, 0, remaining_area, remaining_area);
+        area = 0;
+        if (!rts.empty()) {
+            int size = rts.size();
+            for (int i = 0; i < size; i++) {
+                Rect &rt = rts[i];
+                area += (long long)rt.width_x * rt.width_y;
+            }
+            area_cap = CalculateCouplingCapacitance("area", 0, cur_metal.layer, area, area);
+        }
+        // store coupling cap to ground at <cur_metal.id, cur_metal.id>
         cap[IdToIndex(cur_metal.id - 1, cur_metal.id - 1)] = area_cap;
     }
 }
 
-int CalculateShieldingLateralCap(vector<int> &edge, const Layout &cur_metal, const Layout &temp,
-                                 int distance, int start, int end)
+int Shielding(vector<Line> &ls, const int left, const int right)
 {
-    int length = 0;
-    for (int i = start; i < end; i++) {
-        if (edge[i] == 0) {
-            length++;
-            edge[i] = 1;
+    vector<Line> temp_ls;
+    // overlap length
+    int lateral_length = 0;
+
+    int size = ls.size();
+    for (int i = 0; i < size; i++) {
+        Line &l = ls[i];
+        // if no overlap then add
+        if (right <= l.left || left >= l.right)
+            temp_ls.emplace_back(l);
+
+        // default overlap
+        int overlap_l = l.left;
+        int overlap_r = l.right;
+
+        Line l_new;
+        if (left > l.left) {
+            l_new.left = l.left;
+            l_new.right = left;
+            temp_ls.emplace_back(l_new);
+
+            overlap_l = left;
         }
+        if (right < l.right) {
+            l_new.left = right;
+            l_new.right = l.right;
+            temp_ls.emplace_back(l_new);
+
+            overlap_r = right;
+        }
+
+        lateral_length += overlap_r - overlap_l;
     }
-    
+
+    ls.swap(temp_ls);
+    return lateral_length;
+}
+
+void CalculateShieldingLateralCap(const Layout &cur_metal, const Layout &temp, const int distance, const int length)
+{
     // lateral capacitance
     double lateral_cap = 0.0;
     // metals with same net id do not have coupling capacitance (but still shield?)
     if (cur_metal.net_id != temp.net_id && length != 0)
         lateral_cap = CalculateCouplingCapacitance("lateral", cur_metal.layer, temp.layer, distance, length);
     cap[IdToIndex(cur_metal.id - 1, temp.id - 1)] = lateral_cap;
-
-    return length;
 }
+
+struct lateral_order_up {
+    bool operator()(int metal1, int metal2) const {
+        return layouts[metal1].bl_y < layouts[metal2].bl_y;
+    }
+} LateralOrderUp;
+
+struct lateral_order_down {
+    bool operator()(int metal1, int metal2) const {
+        return layouts[metal1].tr_y > layouts[metal2].tr_y;
+    }
+} LateralOrderDown;
+
+struct lateral_order_left {
+    bool operator()(int metal1, int metal2) const {
+        return layouts[metal1].tr_x > layouts[metal2].tr_x;
+    }
+} LateralOrderLeft;
+
+struct lateral_order_right {
+    bool operator()(int metal1, int metal2) const {
+        return layouts[metal1].bl_x < layouts[metal2].bl_x;
+    }
+} LateralOrderRight;
 
 void CalculateLateralCapacitance()
 {
@@ -188,12 +550,11 @@ void CalculateLateralCapacitance()
         for (int x = 0; x < qwindow_x; x++) {
             for (int y = y_from; y <= y_to; y++) {
                 const vector<int> &qwindow_metals = quarter_windows[cur_metal.layer - 1][x * qwindow_y + y].contribute_metals;
-                for (int metal_id : qwindow_metals) {
-                    // skip itself
-                    if (metal_id == current_metal)
-                        continue;
+                int size = qwindow_metals.size();
+                for (int i = 0; i < size; i++) {
+                    int metal_id = qwindow_metals[i];
                     // calculate already then skip
-                    if (cap[IdToIndex(current_metal - 1, metal_id - 1)] != 0)
+                    if (cap[IdToIndex(current_metal - 1, metal_id - 1)] != -1)
                         continue;
                     candidate_metals.insert(metal_id);
                 }
@@ -203,21 +564,23 @@ void CalculateLateralCapacitance()
         for (int y = 0; y < qwindow_y; y++) {
             for (int x = x_from; x <= x_to; x++) {
                 const vector<int> &qwindow_metals = quarter_windows[cur_metal.layer - 1][x * qwindow_y + y].contribute_metals;
-                for (int metal_id : qwindow_metals) {
-                    // skip itself
-                    if (metal_id == current_metal)
-                        continue;
+                int size = qwindow_metals.size();
+                for (int i = 0; i < size; i++) {
+                    int metal_id = qwindow_metals[i];
                     // calculate already then skip
-                    if (cap[IdToIndex(current_metal - 1, metal_id - 1)] != 0)
+                    if (cap[IdToIndex(current_metal - 1, metal_id - 1)] != -1)
                         continue;
                     candidate_metals.insert(metal_id);
                 }
             }
         }
+        // remove itself
+        candidate_metals.erase(current_metal);
 
         // determine remaining metals belong to which direction
         vector<int> up, down, left, right;
-        for (int metal_id : candidate_metals) {
+        for (set<int>::iterator it = candidate_metals.begin(); it != candidate_metals.end(); it++) {
+            int metal_id = *it;
             const Layout &temp = layouts[metal_id];
 
             // determine if they can't see each other then skip (haven't consider shielding)
@@ -234,136 +597,103 @@ void CalculateLateralCapacitance()
                 left.emplace_back(metal_id);
             else if (temp.bl_x >= cur_metal.tr_x)
                 right.emplace_back(metal_id);
-            else {
+            else
                 /* shouldn't overlap, testcase problems, via metal */
                 continue;
-            }
         }
         set<int>().swap(candidate_metals); // not sure if this works for set as vector to free memory
 
-        // the nearer to the cur_metal, the sooner the metal should be evaluate
-        sort(up.begin(), up.end(), [](const int &i, const int &j) {
-            return layouts[i].bl_y < layouts[j].bl_y;
-        });
-        sort(down.begin(), down.end(), [](const int &i, const int &j) {
-            return layouts[i].tr_y > layouts[j].tr_y;
-        });
-        sort(left.begin(), left.end(), [](const int &i, const int &j) {
-            return layouts[i].tr_x > layouts[j].tr_x;
-        });
-        sort(right.begin(), right.end(), [](const int &i, const int &j) {
-            return layouts[i].bl_x < layouts[j].bl_x;
-        });
+        // the nearer to the cur_metal, the sooner the metal should be calculated
+        sort(up.begin(), up.end(), LateralOrderUp);
+        sort(down.begin(), down.end(), LateralOrderDown);
+        sort(left.begin(), left.end(), LateralOrderLeft);
+        sort(right.begin(), right.end(), LateralOrderRight);
+
+        vector<Line> ls;
+        Line cur_metal_line;
+        int lateral_length = 0;
 
         // up
-        int width = cur_metal.tr_x - cur_metal.bl_x;
-        vector<int> edge(width, 0);
-        // remaining lateral edge
-        int remaining_length = width;
-        for (int metal_id : up) {
-            const Layout &temp = layouts[metal_id];
+        cur_metal_line.left = cur_metal.bl_x;
+        cur_metal_line.right = cur_metal.tr_x;
+        ls.emplace_back(cur_metal_line);
+        int size = up.size();
+        for (int i = 0; i < size; i++) {
+            const Layout &temp = layouts[up[i]];
             // distance between two metals
             int distance = temp.bl_y - cur_metal.tr_y;
-            // raw intersect length (without shielding)
-            int x_start = cur_metal.bl_x > temp.bl_x ? cur_metal.bl_x - cur_metal.bl_x : temp.bl_x - cur_metal.bl_x;
-            int x_end = cur_metal.tr_x < temp.tr_x ? cur_metal.tr_x - cur_metal.bl_x : temp.tr_x - cur_metal.bl_x;
 
-            remaining_length -= CalculateShieldingLateralCap(edge, cur_metal, temp, distance, x_start, x_end);
-            // if (remaining_length < 0) {
-            //     printf("[Error] error in calculating lateral capcitance\n");
-            //     printf("[Error] error in calculating lateral edge (smaller than 0)\n");
-            //     exit(1);
-            // }
-            if (remaining_length == 0)
+            lateral_length = Shielding(ls, temp.bl_x, temp.tr_x);
+            CalculateShieldingLateralCap(cur_metal, temp, distance, lateral_length);
+
+            if (ls.empty())
                 break;
         }
-        vector<int>().swap(edge);
+        vector<Line>().swap(ls);
 
         // down
-        edge.insert(edge.begin(), width, 0);
-        remaining_length = width;
-        for (int metal_id : down) {
-            const Layout &temp = layouts[metal_id];
+        cur_metal_line.left = cur_metal.bl_x;
+        cur_metal_line.right = cur_metal.tr_x;
+        ls.emplace_back(cur_metal_line);
+        size = down.size();
+        for (int i = 0; i < size; i++) {
+            const Layout &temp = layouts[down[i]];
             // distance between two metals
             int distance = temp.bl_y - cur_metal.tr_y;
-            // raw intersect length (without shielding)
-            int x_start = cur_metal.bl_x > temp.bl_x ? cur_metal.bl_x - cur_metal.bl_x : temp.bl_x - cur_metal.bl_x;
-            int x_end = cur_metal.tr_x < temp.tr_x ? cur_metal.tr_x - cur_metal.bl_x : temp.tr_x - cur_metal.bl_x;
 
-            CalculateShieldingLateralCap(edge, cur_metal, temp, distance, x_start, x_end);
-            // if (remaining_length < 0) {
-            //     printf("[Error] error in calculating lateral capcitance\n");
-            //     printf("[Error] error in calculating lateral edge (smaller than 0)\n");
-            //     exit(1);
-            // }
-            if (remaining_length == 0)
+            lateral_length = Shielding(ls, temp.bl_x, temp.tr_x);
+            CalculateShieldingLateralCap(cur_metal, temp, distance, lateral_length);
+
+            if (ls.empty())
                 break;
         }
-        vector<int>().swap(edge);
+        vector<Line>().swap(ls);
 
         // left
-        width = cur_metal.tr_y - cur_metal.bl_y;
-        edge.insert(edge.begin(), width, 0);
-        remaining_length = width;
-        for (int metal_id : left) {
-            const Layout &temp = layouts[metal_id];
+        cur_metal_line.left = cur_metal.bl_y;
+        cur_metal_line.right = cur_metal.tr_y;
+        ls.emplace_back(cur_metal_line);
+        size = left.size();
+        for (int i = 0; i < size; i++) {
+            const Layout &temp = layouts[left[i]];
             // distance between two metals
             int distance = cur_metal.bl_x - temp.tr_x;
-            // raw intersect length (without shielding)
-            int y_start = cur_metal.bl_y > temp.bl_y ? cur_metal.bl_y - cur_metal.bl_y : temp.bl_y - cur_metal.bl_y;
-            int y_end = cur_metal.tr_y < temp.tr_y ? cur_metal.tr_y - cur_metal.bl_y : temp.tr_y - cur_metal.bl_y;
 
-            CalculateShieldingLateralCap(edge, cur_metal, temp, distance, y_start, y_end);
-            // if (remaining_length < 0) {
-            //     printf("[Error] error in calculating lateral capcitance\n");
-            //     printf("[Error] error in calculating lateral edge (smaller than 0)\n");
-            //     exit(1);
-            // }
-            if (remaining_length == 0)
+            lateral_length = Shielding(ls, temp.bl_y, temp.tr_y);
+            CalculateShieldingLateralCap(cur_metal, temp, distance, lateral_length);
+
+            if (ls.empty())
                 break;
         }
-        vector<int>().swap(edge);
+        vector<Line>().swap(ls);
 
         // right
-        edge.insert(edge.begin(), width, 0);
-        remaining_length = width;
-        for (int metal_id : right) {
-            const Layout &temp = layouts[metal_id];
+        cur_metal_line.left = cur_metal.bl_y;
+        cur_metal_line.right = cur_metal.tr_y;
+        ls.emplace_back(cur_metal_line);
+        size = right.size();
+        for (int i = 0; i < size; i++) {
+            const Layout &temp = layouts[right[i]];
             // distance between two metals
             int distance = temp.bl_x - cur_metal.tr_x;
-            // raw intersect length (without shielding)
-            int y_start = cur_metal.bl_y > temp.bl_y ? cur_metal.bl_y - cur_metal.bl_y : temp.bl_y - cur_metal.bl_y;
-            int y_end = cur_metal.tr_y < temp.tr_y ? cur_metal.tr_y - cur_metal.bl_y : temp.tr_y - cur_metal.bl_y;
 
-            CalculateShieldingLateralCap(edge, cur_metal, temp, distance, y_start, y_end);
-            // if (remaining_length < 0) {
-            //     printf("[Error] error in calculating lateral capcitance\n");
-            //     printf("[Error] error in calculating lateral edge (smaller than 0)\n");
-            //     exit(1);
-            // }
-            if (remaining_length == 0)
+            lateral_length = Shielding(ls, temp.bl_y, temp.tr_y);
+            CalculateShieldingLateralCap(cur_metal, temp, distance, lateral_length);
+
+            if (ls.empty())
                 break;
         }
-        vector<int>().swap(edge);
+        vector<Line>().swap(ls);
     }
 }
 
-int CalculateShieldingFringeCap(vector<int> &edge, const Layout &cur_metal, const Layout &temp,
-                                int distance, int start, int end)
+void CalculateShieldingFringeCap(const Layout &cur_metal, const Layout &temp, const int distance, const int length)
 {
-    int length = 0;
-    for (int i = start; i < end; i++) {
-        if (edge[i] == 0) {
-            length++;
-            edge[i] = 1;
-        }
-    }
-    
-    // no fringe cap between metals that are in same layer or projection overlapping but still cause shielding
+    // no fringe cap between metals that are in same layer or projection overlapping, but still cause shielding
     if ((cur_metal.layer == temp.layer) ||
         !(temp.tr_x <= cur_metal.bl_x || temp.bl_x >= cur_metal.tr_x ||
           temp.bl_y >= cur_metal.tr_y || temp.tr_y <= cur_metal.bl_y))
-        return length;
+        return;
 
     // fringe capacitance
     double fringe_cap = 0.0;
@@ -371,9 +701,31 @@ int CalculateShieldingFringeCap(vector<int> &edge, const Layout &cur_metal, cons
     if (cur_metal.net_id != temp.net_id && length != 0)
         fringe_cap = CalculateCouplingCapacitance("fringe", cur_metal.layer, temp.layer, distance, length);
     cap[IdToIndex(cur_metal.id - 1, temp.id - 1)] = fringe_cap;
-
-    return length;
 }
+
+struct fringe_order_up {
+    bool operator()(int metal1, int metal2) const {
+        return layouts[metal1].bl_y < layouts[metal2].bl_y;
+    }
+} FringeOrderUp;
+
+struct fringe_order_down {
+    bool operator()(int metal1, int metal2) const {
+        return layouts[metal1].tr_y > layouts[metal2].tr_y;
+    }
+} FringeOrderDown;
+
+struct fringe_order_left {
+    bool operator()(int metal1, int metal2) const {
+        return layouts[metal1].tr_x > layouts[metal2].tr_x;
+    }
+} FringeOrderLeft;
+
+struct fringe_order_right {
+    bool operator()(int metal1, int metal2) const {
+        return layouts[metal1].bl_x < layouts[metal2].bl_x;
+    }
+} FringeOrderRight;
 
 /* should be similar to lateral, but consider overlapping coordinate in different layers */
 void CalculateFringeCapacitance()
@@ -413,7 +765,8 @@ void CalculateFringeCapacitance()
 
         // determine remaining metals belong to which direction
         vector<int> up, down, left, right;
-        for (int metal_id : candidate_metals) {
+        for (set<int>::iterator it = candidate_metals.begin(); it != candidate_metals.end(); it++) {
+            int metal_id = *it;
             const Layout &temp = layouts[metal_id];
 
             // determine if they can't see each other then skip (haven't consider shielding)
@@ -434,109 +787,88 @@ void CalculateFringeCapacitance()
         }
         set<int>().swap(candidate_metals); // not sure if this works for set as vector to free memory
 
-        // the nearer to the cur_metal, the sooner the metal should be evaluate
-        // consider the projection overlapping metals the same, their orders don't matter
+        // the nearer to the cur_metal, the sooner the metal should be calculated
+        // consider the projection overlapping metals the same as others, their orders don't matter
         //     just make sure they are in front of other metals 
-        sort(up.begin(), up.end(), [](const int &i, const int &j) {
-            return layouts[i].bl_y < layouts[j].bl_y;
-        });
-        sort(down.begin(), down.end(), [](const int &i, const int &j) {
-            return layouts[i].tr_y > layouts[j].tr_y;
-        });
-        sort(left.begin(), left.end(), [](const int &i, const int &j) {
-            return layouts[i].tr_x > layouts[j].tr_x;
-        });
-        sort(right.begin(), right.end(), [](const int &i, const int &j) {
-            return layouts[i].bl_x < layouts[j].bl_x;
-        });
+        sort(up.begin(), up.end(), FringeOrderUp);
+        sort(down.begin(), down.end(), FringeOrderDown);
+        sort(left.begin(), left.end(), FringeOrderLeft);
+        sort(right.begin(), right.end(), FringeOrderRight);
+
+        vector<Line> ls;
+        Line cur_metal_line;
+        int lateral_length = 0;
 
         // up
-        int width = cur_metal.tr_x - cur_metal.bl_x;
-        vector<int> edge(width, 0);
-        // remaining fringe edge
-        int remaining_length = width;
-        for (int metal_id : up) {
-            const Layout &temp = layouts[metal_id];
+        cur_metal_line.left = cur_metal.bl_x;
+        cur_metal_line.right = cur_metal.tr_x;
+        ls.emplace_back(cur_metal_line);
+        int size = up.size();
+        for (int i = 0; i < size; i++) {
+            const Layout &temp = layouts[up[i]];
             // distance between two metals
             int distance = temp.bl_y - cur_metal.tr_y;
-            // raw intersect length (without shielding)
-            int x_start = cur_metal.bl_x > temp.bl_x ? cur_metal.bl_x - cur_metal.bl_x : temp.bl_x - cur_metal.bl_x;
-            int x_end = cur_metal.tr_x < temp.tr_x ? cur_metal.tr_x - cur_metal.bl_x : temp.tr_x - cur_metal.bl_x;
 
-            remaining_length -= CalculateShieldingFringeCap(edge, cur_metal, temp, distance, x_start, x_end);
-            // if (remaining_length < 0) {
-            //     printf("[Error] error in calculating Fringe capcitance\n");
-            //     printf("[Error] error in calculating Fringe edge (smaller than 0)\n");
-            //     exit(1);
-            // }
-            if (remaining_length == 0)
+            lateral_length = Shielding(ls, temp.bl_x, temp.tr_x);
+            CalculateShieldingLateralCap(cur_metal, temp, distance, lateral_length);
+
+            if (ls.empty())
                 break;
         }
-        vector<int>().swap(edge);
+        vector<Line>().swap(ls);
 
         // down
-        edge.insert(edge.begin(), width, 0);
-        remaining_length = width;
-        for (int metal_id : down) {
-            const Layout &temp = layouts[metal_id];
+        cur_metal_line.left = cur_metal.bl_x;
+        cur_metal_line.right = cur_metal.tr_x;
+        ls.emplace_back(cur_metal_line);
+        size = down.size();
+        for (int i = 0; i < size; i++) {
+            const Layout &temp = layouts[down[i]];
             // distance between two metals
-            int distance = cur_metal.bl_y - temp.tr_y;
-            // raw intersect length (without shielding)
-            int x_start = cur_metal.bl_x > temp.bl_x ? cur_metal.bl_x - cur_metal.bl_x : temp.bl_x - cur_metal.bl_x;
-            int x_end = cur_metal.tr_x < temp.tr_x ? cur_metal.tr_x - cur_metal.bl_x : temp.tr_x - cur_metal.bl_x;
+            int distance = temp.bl_y - cur_metal.tr_y;
 
-            CalculateShieldingFringeCap(edge, cur_metal, temp, distance, x_start, x_end);
-            // if (remaining_length < 0) {
-            //     printf("[Error] error in calculating Fringe capcitance\n");
-            //     printf("[Error] error in calculating Fringe edge (smaller than 0)\n");
-            //     exit(1);
-            // }
-            if (remaining_length == 0)
+            lateral_length = Shielding(ls, temp.bl_x, temp.tr_x);
+            CalculateShieldingLateralCap(cur_metal, temp, distance, lateral_length);
+
+            if (ls.empty())
                 break;
         }
-        vector<int>().swap(edge);
+        vector<Line>().swap(ls);
 
         // left
-        width = cur_metal.tr_y - cur_metal.bl_y;
-        edge.insert(edge.begin(), width, 0);
-        remaining_length = width;
-        for (int metal_id : left) {
-            const Layout &temp = layouts[metal_id];
+        cur_metal_line.left = cur_metal.bl_y;
+        cur_metal_line.right = cur_metal.tr_y;
+        ls.emplace_back(cur_metal_line);
+        size = left.size();
+        for (int i = 0; i < size; i++) {
+            const Layout &temp = layouts[left[i]];
             // distance between two metals
             int distance = cur_metal.bl_x - temp.tr_x;
-            // raw intersect length (without shielding)
-            int y_start = cur_metal.bl_y > temp.bl_y ? cur_metal.bl_y - cur_metal.bl_y : temp.bl_y - cur_metal.bl_y;
-            int y_end = cur_metal.tr_y < temp.tr_y ? cur_metal.tr_y - cur_metal.bl_y : temp.tr_y - cur_metal.bl_y;
 
-            CalculateShieldingFringeCap(edge, cur_metal, temp, distance, y_start, y_end);
-            // if (remaining_length < 0) {
-            //     printf("[Error] error in calculating Fringe capcitance\n");
-            //     printf("[Error] error in calculating Fringe edge (smaller than 0)\n");
-            //     exit(1);
+            lateral_length = Shielding(ls, temp.bl_y, temp.tr_y);
+            CalculateShieldingLateralCap(cur_metal, temp, distance, lateral_length);
+
+            if (ls.empty())
                 break;
         }
-        vector<int>().swap(edge);
+        vector<Line>().swap(ls);
 
         // right
-        edge.insert(edge.begin(), width, 0);
-        remaining_length = width;
-        for (int metal_id : right) {
-            const Layout &temp = layouts[metal_id];
+        cur_metal_line.left = cur_metal.bl_y;
+        cur_metal_line.right = cur_metal.tr_y;
+        ls.emplace_back(cur_metal_line);
+        size = right.size();
+        for (int i = 0; i < size; i++) {
+            const Layout &temp = layouts[right[i]];
             // distance between two metals
             int distance = temp.bl_x - cur_metal.tr_x;
-            // raw intersect length (without shielding)
-            int y_start = cur_metal.bl_y > temp.bl_y ? cur_metal.bl_y - cur_metal.bl_y : temp.bl_y - cur_metal.bl_y;
-            int y_end = cur_metal.tr_y < temp.tr_y ? cur_metal.tr_y - cur_metal.bl_y : temp.tr_y - cur_metal.bl_y;
 
-            CalculateShieldingFringeCap(edge, cur_metal, temp, distance, y_start, y_end);
-            // if (remaining_length < 0) {
-            //     printf("[Error] error in calculating Fringe capcitance\n");
-            //     printf("[Error] error in calculating Fringe edge (smaller than 0)\n");
-            //     exit(1);
-            // }
-            if (remaining_length == 0)
+            lateral_length = Shielding(ls, temp.bl_y, temp.tr_y);
+            CalculateShieldingLateralCap(cur_metal, temp, distance, lateral_length);
+
+            if (ls.empty())
                 break;
         }
-        vector<int>().swap(edge);
+        vector<Line>().swap(ls);
     }
 }
