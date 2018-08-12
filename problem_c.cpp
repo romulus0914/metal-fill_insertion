@@ -1527,18 +1527,45 @@ void FillMetalRandomly()
 
                 vector<Rect> rts;
                 vector<int> contribute_metals(qw.contribute_metals.begin(), qw.contribute_metals.end());
-                if (qw.index - 1 >= 0)
+                // left
+                if (qw.index % qwindow_y != 0)
                     contribute_metals.insert(contribute_metals.end(), 
-                                            qws[qw.index - 1].contribute_metals.begin(), qws[qw.index - 1].contribute_metals.end());
-                if (qw.index - qwindow_y >= 0)
+                                             qws[qw.index - 1].contribute_metals.begin(),
+                                             qws[qw.index - 1].contribute_metals.end());
+                // top
+                if (qw.index / qwindow_y != 0)
                     contribute_metals.insert(contribute_metals.end(), 
-                                            qws[qw.index - qwindow_y].contribute_metals.begin(), qws[qw.index - qwindow_y].contribute_metals.end());
-                if (qw.index + 1 < max_qwindows)
+                                             qws[qw.index - qwindow_y].contribute_metals.begin(),
+                                             qws[qw.index - qwindow_y].contribute_metals.end());
+                // top left
+                if (qw.index % qwindow_y != 0 && qw.index / qwindow_y != 0)
+                    contribute_metals.insert(contribute_metals.end(), 
+                                             qws[qw.index - qwindow_y - 1].contribute_metals.begin(),
+                                             qws[qw.index - qwindow_y - 1].contribute_metals.end());
+                // right
+                if (qw.index % qwindow_y != qwindow_y - 1)
                     contribute_metals.insert(contribute_metals.end(), 
                                             qws[qw.index + 1].contribute_metals.begin(), qws[qw.index + 1].contribute_metals.end());
-                if (qw.index + qwindow_y < max_qwindows)
+                // top right
+                if (qw.index % qwindow_y != qwindow_y - 1 && qw.index / qwindow_y != 0)
                     contribute_metals.insert(contribute_metals.end(), 
-                                            qws[qw.index + qwindow_y].contribute_metals.begin(), qws[qw.index + qwindow_y].contribute_metals.end());
+                                             qws[qw.index - qwindow_y + 1].contribute_metals.begin(),
+                                             qws[qw.index - qwindow_y + 1].contribute_metals.end());
+                // bottom
+                if (qw.index / qwindow_y != qwindow_x - 1)
+                    contribute_metals.insert(contribute_metals.end(), 
+                                             qws[qw.index + qwindow_y].contribute_metals.begin(),
+                                             qws[qw.index + qwindow_y].contribute_metals.end());
+                // bottom left
+                if (qw.index % qwindow_y != 0 && qw.index / qwindow_y != qwindow_x - 1)
+                    contribute_metals.insert(contribute_metals.end(), 
+                                             qws[qw.index + qwindow_y - 1].contribute_metals.begin(),
+                                             qws[qw.index + qwindow_y - 1].contribute_metals.end());
+                // bottom right
+                if (qw.index % qwindow_y != qwindow_y - 1 && qw.index / qwindow_y != qwindow_x - 1)
+                    contribute_metals.insert(contribute_metals.end(), 
+                                             qws[qw.index + qwindow_y + 1].contribute_metals.begin(),
+                                             qws[qw.index + qwindow_y + 1].contribute_metals.end());
                 FindSpace(rts, qw, contribute_metals, r.min_width, half_min_space);
 
                 size = rts.size();
