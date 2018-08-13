@@ -19,7 +19,7 @@ void ReadConfig()
     string str;
     while (file >> str) {
         if (str == "design:") {
-            file >>  circuit_file;
+            file >> circuit_file;
         } else if (str == "output:") {
             file >> output_file;
         } else if (str == "rule_file:") {
@@ -348,7 +348,6 @@ void AnalyzeDensity()
                 qwindows[index].bl_y = y * stride;
                 qwindows[index].tr_y = (y + 1) * stride;
                 qwindows[index].violate_count = 0;
-                qwindows[index].hasCritical = 0;
             }
         }
 
@@ -373,8 +372,6 @@ void AnalyzeDensity()
 				    area = (x_end - x_start) * (y_end - y_start);
 				    qwindows[x * qwindow_y + y].area += area;
                     qwindows[x * qwindow_y + y].contribute_metals.emplace_back(temp.id);
-                    if (temp.isCritical)
-                        qwindows[x * qwindow_y + y].hasCritical++;
 			    }
 		    }
             if (++current_metal == total_metals + 1)
@@ -411,6 +408,9 @@ void AnalyzeDensity()
 
                 if (ws[index].density < min_density) {
                     ws[index].area_insufficient = min_area - ws[index].area;
+                    // printf("window %d(%d) (%d %d %d %d): area=%lld, insuff=%lld\n", index, layer, cb.bl_x + x * stride, cb.bl_y + y * stride,
+                    //        cb.bl_x + x * stride + window_size, cb.bl_y + y * stride + window_size,
+                    //        ws[index].area, ws[index].area_insufficient);
                     qwindows[q_index].violate_count++;
                     qwindows[q_index + qwindow_y].violate_count++;
                     qwindows[q_index + 1].violate_count++;
@@ -1485,29 +1485,20 @@ void FillMetalRandomly()
         long long min_metal_fill = (long long)r.min_width * r.min_width;
         long long max_metal_fill = (long long)r.max_fill_width * r.max_fill_width;
 
-        int max_qwindows = qwindow_x * qwindow_y;
+        int max_windows = window_x * window_y;
         while (1) {
-            int max_violate_idx = -1;
-            int max_violate = 0;
-            for (int i = 0; i < max_qwindows; i++) {
-                if (qws[i].violate_count > max_violate) {
-                    max_violate_idx = i;
-                    max_violate = qws[i].violate_count;
-                }
-            }
-            if (max_violate_idx == -1)
-                break;
-
             int min_insuff_idx = -1;
             long long min_insuff = w_area;
-            size = qws[max_violate_idx].affected_window.size();
-            for (int i = 0; i < size; i++) {
-                if (ws[qws[max_violate_idx].affected_window[i]].area_insufficient > 0 &&
-                    ws[qws[max_violate_idx].affected_window[i]].area_insufficient < min_insuff) {
-                    min_insuff_idx = qws[max_violate_idx].affected_window[i];
-                    min_insuff = ws[qws[max_violate_idx].affected_window[i]].area_insufficient;
+            for (int i = 0; i < max_windows; i++) {
+                if (ws[i].area_insufficient > 0 && ws[i].area_insufficient < min_insuff) {
+                    min_insuff_idx = i;
+                    min_insuff = ws[i].area_insufficient;
                 }
             }
+
+            // no more insufficient window
+            if (min_insuff_idx == -1)
+                break;
 
             vector<int> qw_included(ws[min_insuff_idx].included_qwindow.begin(), ws[min_insuff_idx].included_qwindow.end());
             for (int i = 1; i < 4; i++) {
@@ -1632,6 +1623,30 @@ void OutputLayout()
     file.close();
 }
 
+/* output layout in layer order */
+void OutputInOrder()
+{
+    ofstream file(path + output_file);
+
+    int size = layouts.size();
+    for (int layer = 1; layer <= total_layers; layer++) {
+        for (int i = 1; i < size; i++) {
+            Layout &temp = layouts[i];
+            if (temp.layer == layer) {
+                file << temp.id << " " << temp.bl_x + cb.bl_x << " " << temp.bl_y + cb.bl_y << " "
+                     << temp.tr_x + cb.bl_x << " " << temp.tr_y + cb.bl_y << " "
+                     << temp.net_id << " " << temp.layer;
+                if (temp.type == 1)
+                    file << ' Normal\n';
+                else if (temp.type == 3)
+                    file << ' Fill\n';
+            }
+        }
+    }
+
+    file.close();
+}
+
 void free_memory()
 {
     // int total_layers = metals.size();
@@ -1681,6 +1696,7 @@ int main(int argc, char **argv)
     FillMetalRandomly();
 
     OutputLayout();
+    // OutputInOrder();
 
     // free_memory();
 
