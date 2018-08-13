@@ -78,7 +78,6 @@ typedef struct quarter_window {
     int tr_y;
     std::vector<int> contribute_metals;
     int violate_count;
-    int hasCritical;
     std::vector<int> affected_window;
 } QuarterWindow;
 
