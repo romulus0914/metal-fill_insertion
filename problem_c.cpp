@@ -12,6 +12,9 @@
 
 using namespace std;
 
+//#define CHECKER_MODE 1
+//#define OUTPUT_ALL 1
+
 void ReadConfig()
 {
     ifstream file(config_file);
@@ -408,9 +411,11 @@ void AnalyzeDensity()
 
                 if (ws[index].density < min_density) {
                     ws[index].area_insufficient = min_area - ws[index].area;
-                    // printf("window %d(%d) (%d %d %d %d): area=%lld, insuff=%lld\n", index, layer, cb.bl_x + x * stride, cb.bl_y + y * stride,
-                    //        cb.bl_x + x * stride + window_size, cb.bl_y + y * stride + window_size,
-                    //        ws[index].area, ws[index].area_insufficient);
+                #ifdef CHECKER_MODE
+                    printf("window %d(%d) (%d %d %d %d): area=%lld, insuff=%lld\n", index, layer, cb.bl_x + x * stride, cb.bl_y + y * stride,
+                           cb.bl_x + x * stride + window_size, cb.bl_y + y * stride + window_size,
+                           ws[index].area, ws[index].area_insufficient);
+                #endif
                     qwindows[q_index].violate_count++;
                     qwindows[q_index + qwindow_y].violate_count++;
                     qwindows[q_index + 1].violate_count++;
@@ -430,7 +435,7 @@ struct larger_rect {
     }
 } LargerRect;
 
-void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const vector<int> contribute_metals,
+void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const set<int> contribute_metals,
                const int min_width, const int half_min_space)
 {
     int actual_min_width = min_width + 2 * half_min_space;
@@ -445,9 +450,8 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const vector<int> con
     rts.emplace_back(qw_rect);
 
     int id = -1;
-    int size = contribute_metals.size();
-    for (int i = 0; i < size; i++) {
-        Layout temp = layouts[contribute_metals[i]];
+    for (set<int>::iterator it = contribute_metals.begin(); it != contribute_metals.end(); it++) {
+        Layout temp = layouts[*it];
         temp.bl_x -= half_min_space;
         temp.bl_y -= half_min_space;
         temp.tr_x += half_min_space;
@@ -1557,7 +1561,7 @@ void FillMetalRandomly()
                     contribute_metals.insert(contribute_metals.end(), 
                                              qws[qw.index + qwindow_y + 1].contribute_metals.begin(),
                                              qws[qw.index + qwindow_y + 1].contribute_metals.end());
-                FindSpace(rts, qw, contribute_metals, r.min_width, half_min_space);
+                FindSpace(rts, qw, set<int>(contribute_metals.begin(), contribute_metals.end()), r.min_width, half_min_space);
 
                 size = rts.size();
                 for (int i = 0; i < size; i++) {
@@ -1608,7 +1612,7 @@ void FillMetalRandomly()
     }
 }
 
-void OutputLayout()
+void OutputFill()
 {
     ofstream file(path + output_file);
 
@@ -1624,9 +1628,11 @@ void OutputLayout()
 }
 
 /* output layout in layer order */
-void OutputInOrder()
+void OutputAll()
 {
     ofstream file(path + output_file);
+
+    file << cb.bl_x << " " << cb.bl_y << " " << cb.tr_x << " " << cb.tr_y << "; chip boundary\n";
 
     int size = layouts.size();
     for (int layer = 1; layer <= total_layers; layer++) {
@@ -1637,9 +1643,9 @@ void OutputInOrder()
                      << temp.tr_x + cb.bl_x << " " << temp.tr_y + cb.bl_y << " "
                      << temp.net_id << " " << temp.layer;
                 if (temp.type == 1)
-                    file << ' Normal\n';
+                    file << " Normal\n";
                 else if (temp.type == 3)
-                    file << ' Fill\n';
+                    file << " Fill\n";
             }
         }
     }
@@ -1693,10 +1699,14 @@ int main(int argc, char **argv)
     // CalculateLateralCapacitance();
     // CalculateFringeCapacitance();
 
+#ifndef CHECKER_MODE
     FillMetalRandomly();
-
-    OutputLayout();
-    // OutputInOrder();
+    #ifdef OUTPUT_ALL
+        OutputAll();
+    #else
+        OutputFill();
+    #endif
+#endif
 
     // free_memory();
 
