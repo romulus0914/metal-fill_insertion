@@ -7,8 +7,8 @@
 #include <algorithm>
 #include <utility>
 
-//#include "problem_c.h"
-#include "capacitance.h"
+#include "problem_c.h"
+//#include "capacitance.h"
 
 using namespace std;
 
@@ -441,12 +441,12 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const set<int> contri
     int actual_min_width = min_width + 2 * half_min_space;
 
     Rect qw_rect;
-    qw_rect.bl_x = qw.bl_x;
-    qw_rect.bl_y = qw.bl_y;
-    qw_rect.tr_x = qw.tr_x;
-    qw_rect.tr_y = qw.tr_y;
-    qw_rect.width_x = stride;
-    qw_rect.width_y = stride;
+    qw_rect.bl_x = qw.bl_x - half_min_space;
+    qw_rect.bl_y = qw.bl_y - half_min_space;
+    qw_rect.tr_x = qw.tr_x + half_min_space;
+    qw_rect.tr_y = qw.tr_y + half_min_space;
+    qw_rect.width_x = stride + 2 * half_min_space;
+    qw_rect.width_y = stride + 2 * half_min_space;
     rts.emplace_back(qw_rect);
 
     int id = -1;
