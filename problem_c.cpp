@@ -1540,7 +1540,8 @@ void FillMetalRandomly()
                 // right
                 if (qw.index % qwindow_y != qwindow_y - 1)
                     contribute_metals.insert(contribute_metals.end(), 
-                                            qws[qw.index + 1].contribute_metals.begin(), qws[qw.index + 1].contribute_metals.end());
+                                             qws[qw.index + 1].contribute_metals.begin(),
+					     qws[qw.index + 1].contribute_metals.end());
                 // top right
                 if (qw.index % qwindow_y != qwindow_y - 1 && qw.index / qwindow_y != 0)
                     contribute_metals.insert(contribute_metals.end(), 
