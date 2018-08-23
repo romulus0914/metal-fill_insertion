@@ -19,6 +19,7 @@ typedef struct rect {
     int tr_y;
     int width_x;
     int width_y;
+    int near_critical;
 } Rect;
 
 typedef struct layout {
@@ -31,7 +32,7 @@ typedef struct layout {
     int layer;
     // Drv_Pin 0 | Normal 1 | Load_Pin 2 | Fill 3
     int type;
-    bool isCritical;
+    int is_critical;
 } Layout;
 
 typedef struct rule {
