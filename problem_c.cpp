@@ -82,7 +82,7 @@ void ReadCircuit()
             l.type = 2;
         else if (str == "Fill")
             l.type = 3;
-        l.isCritical = critical_nets.find(l.net_id) != critical_nets.end();
+        l.is_critical = critical_nets.find(l.net_id) != critical_nets.end() ? 1 : 0;
 
         layouts.emplace_back(l);
 
@@ -431,7 +431,12 @@ void AnalyzeDensity()
 
 struct larger_rect {
     bool operator()(Rect r1, Rect r2) const {
-        return (long long)r1.width_x * r1.width_y  > (long long)r2.width_x * r2.width_y;
+        if (r1.near_critical == 0 && r2.near_critical == 1)
+            return true;
+        else if (r1.near_critical == 1 && r2.near_critical == 0)
+            return false;
+        else
+            return (long long)r1.width_x * r1.width_y  > (long long)r2.width_x * r2.width_y;
     }
 } LargerRect;
 
@@ -480,6 +485,10 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const set<int> contri
                 printf("  cond: %d\n", condition);
             
             Rect rt_new;
+            rt_new.near_critical = 0;
+            if (temp.is_critical)
+                rt_new.near_critical = 1;
+
             if (condition == 0) {
                 // middle (rt.bl_x < temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y > temp.tr_y)
                 vector<Rect> temp1;
@@ -1287,7 +1296,7 @@ void AddMetalFill(QuarterWindow &qw, const Rect rt, const int layer)
     metal_fill.net_id = 0;
     metal_fill.layer = layer;
     metal_fill.type = 3; // Fill
-    metal_fill.isCritical = false;
+    metal_fill.is_critical = 0;
 
     Rule &r = rules[layer - 1];
     int width_x = metal_fill.tr_x - metal_fill.bl_x;
@@ -1391,28 +1400,57 @@ long long DivideMetalFill(QuarterWindow &qw, Rect rt, long long target_area,
     int y_width_rest = y_width % max_width_padding;
     if (y_width_rest > max_width)
         y_width_rest = max_width;
-    // y = max width
-    if (x_width_rest != 0 && x_width_rest >= min_width) {
-        r.bl_x = rt.bl_x + x_max_count * max_width_padding;
-        r.tr_x = r.bl_x + x_width_rest;
-        r.width_x = x_width_rest;
-        r.width_y = max_width;
-        for (int y_count = 0; y_count < y_max_count; y_count++) {
-            r.bl_y = rt.bl_y + y_count * max_width_padding;
-            r.tr_y = r.bl_y + max_width;
-            rts.emplace_back(r);
+
+    // larger rect fill first
+    if (x_width_rest >= y_width_rest) {
+        // y = max width
+        if (x_width_rest != 0 && x_width_rest >= min_width) {
+            r.bl_x = rt.bl_x + x_max_count * max_width_padding;
+            r.tr_x = r.bl_x + x_width_rest;
+            r.width_x = x_width_rest;
+            r.width_y = max_width;
+            for (int y_count = 0; y_count < y_max_count; y_count++) {
+                r.bl_y = rt.bl_y + y_count * max_width_padding;
+                r.tr_y = r.bl_y + max_width;
+                rts.emplace_back(r);
+            }
         }
-    }
-    // x = max width
-    if (y_width_rest != 0 && y_width_rest >= min_width) {
-        r.bl_y = rt.bl_y + y_max_count * max_width_padding;
-        r.tr_y = r.bl_y + y_width_rest;
-        r.width_y = y_width_rest;
-        r.width_x = max_width;
-        for (int x_count = 0; x_count < x_max_count; x_count++) {
-            r.bl_x = rt.bl_x + x_count * max_width_padding;
-            r.tr_x = r.bl_x + max_width;
-            rts.emplace_back(r);
+        // x = max width
+        if (y_width_rest != 0 && y_width_rest >= min_width) {
+            r.bl_y = rt.bl_y + y_max_count * max_width_padding;
+            r.tr_y = r.bl_y + y_width_rest;
+            r.width_y = y_width_rest;
+            r.width_x = max_width;
+            for (int x_count = 0; x_count < x_max_count; x_count++) {
+                r.bl_x = rt.bl_x + x_count * max_width_padding;
+                r.tr_x = r.bl_x + max_width;
+                rts.emplace_back(r);
+            }
+        }
+    } else {
+        // x = max width
+        if (y_width_rest != 0 && y_width_rest >= min_width) {
+            r.bl_y = rt.bl_y + y_max_count * max_width_padding;
+            r.tr_y = r.bl_y + y_width_rest;
+            r.width_y = y_width_rest;
+            r.width_x = max_width;
+            for (int x_count = 0; x_count < x_max_count; x_count++) {
+                r.bl_x = rt.bl_x + x_count * max_width_padding;
+                r.tr_x = r.bl_x + max_width;
+                rts.emplace_back(r);
+            }
+        }
+        // y = max width
+        if (x_width_rest != 0 && x_width_rest >= min_width) {
+            r.bl_x = rt.bl_x + x_max_count * max_width_padding;
+            r.tr_x = r.bl_x + x_width_rest;
+            r.width_x = x_width_rest;
+            r.width_y = max_width;
+            for (int y_count = 0; y_count < y_max_count; y_count++) {
+                r.bl_y = rt.bl_y + y_count * max_width_padding;
+                r.tr_y = r.bl_y + max_width;
+                rts.emplace_back(r);
+            }
         }
     }
 
@@ -1475,7 +1513,6 @@ void FillMetalRandomly()
 {
     // window area;
     long long w_area = (long long)window_size * window_size;
-    int size = 0;
 
     for (int layer = 1; layer <= total_layers; layer++) {
         vector<Window> &ws = windows[layer - 1];
@@ -1540,8 +1577,8 @@ void FillMetalRandomly()
                 // right
                 if (qw.index % qwindow_y != qwindow_y - 1)
                     contribute_metals.insert(contribute_metals.end(), 
-                                             qws[qw.index + 1].contribute_metals.begin(),
-					     qws[qw.index + 1].contribute_metals.end());
+                                            qws[qw.index + 1].contribute_metals.begin(),
+                                            qws[qw.index + 1].contribute_metals.end());
                 // top right
                 if (qw.index % qwindow_y != qwindow_y - 1 && qw.index / qwindow_y != 0)
                     contribute_metals.insert(contribute_metals.end(), 
@@ -1564,7 +1601,7 @@ void FillMetalRandomly()
                                              qws[qw.index + qwindow_y + 1].contribute_metals.end());
                 FindSpace(rts, qw, set<int>(contribute_metals.begin(), contribute_metals.end()), r.min_width, half_min_space);
 
-                size = rts.size();
+                int size = rts.size();
                 for (int i = 0; i < size; i++) {
                     Rect metal_fill = rts[i];
                     metal_fill.bl_x += half_min_space;
