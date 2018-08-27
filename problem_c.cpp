@@ -350,7 +350,6 @@ void AnalyzeDensity()
                 qwindows[index].tr_x = end;
                 qwindows[index].bl_y = y * stride;
                 qwindows[index].tr_y = (y + 1) * stride;
-                qwindows[index].violate_count = 0;
             }
         }
 
@@ -386,6 +385,8 @@ void AnalyzeDensity()
         long long min_area = w_area * rules[layer - 1].min_density;
         double min_density = rules[layer - 1].min_density;
         for (int x = 0; x < window_x; x++) {
+            int x_start = x * stride;
+            int x_end = x_start + window_size;
             for (int y = 0; y < window_y; y++) {
                 // window index
                 int index = x * window_y + y;
@@ -397,10 +398,15 @@ void AnalyzeDensity()
                                  qwindows[q_index + 1].area + qwindows[q_index + qwindow_y + 1].area;
                 ws[index].area_insufficient = 0;
                 ws[index].density = (double)ws[index].area / w_area;
+                ws[index].bl_x = x_start;
+                ws[index].tr_x = x_end;
+                ws[index].bl_y = y * stride;
+                ws[index].tr_y = ws[index].bl_y + window_size;
+
                 // remember which quarter window is included
                 ws[index].included_qwindow.emplace_back(q_index);
-                ws[index].included_qwindow.emplace_back(q_index + qwindow_y);
                 ws[index].included_qwindow.emplace_back(q_index + 1);
+                ws[index].included_qwindow.emplace_back(q_index + qwindow_y);
                 ws[index].included_qwindow.emplace_back(q_index + qwindow_y + 1);
 
                 // remember which window will be affected
@@ -416,10 +422,6 @@ void AnalyzeDensity()
                            cb.bl_x + x * stride + window_size, cb.bl_y + y * stride + window_size,
                            ws[index].area, ws[index].area_insufficient);
                 #endif
-                    qwindows[q_index].violate_count++;
-                    qwindows[q_index + qwindow_y].violate_count++;
-                    qwindows[q_index + 1].violate_count++;
-                    qwindows[q_index + qwindow_y + 1].violate_count++; 
                 }
             }
         }
@@ -429,46 +431,31 @@ void AnalyzeDensity()
     }
 }
 
-struct larger_rect {
+struct less_criticals_rect {
     bool operator()(Rect r1, Rect r2) const {
-        if (r1.near_critical == 0 && r2.near_critical == 1)
-            return true;
-        else if (r1.near_critical == 1 && r2.near_critical == 0)
-            return false;
+        if (r1.near_criticals != r2.near_criticals)
+            return r1.near_criticals < r2.near_criticals;
         else
-            return (long long)r1.width_x * r1.width_y  > (long long)r2.width_x * r2.width_y;
+            return (long long)r1.width_x * r1.width_y > (long long)r2.width_x * r2.width_y;
     }
-} LargerRect;
+} LessCriticalsRect;
 
-void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const set<int> contribute_metals,
-               const int min_width, const int half_min_space)
+void FindSpace(vector<Rect> &rts, const set<int> &contribute_metals, const int min_width, const int half_min_space)
 {
     int actual_min_width = min_width + 2 * half_min_space;
 
-    Rect qw_rect;
-    qw_rect.bl_x = qw.bl_x - half_min_space;
-    qw_rect.bl_y = qw.bl_y - half_min_space;
-    qw_rect.tr_x = qw.tr_x + half_min_space;
-    qw_rect.tr_y = qw.tr_y + half_min_space;
-    qw_rect.width_x = stride + 2 * half_min_space;
-    qw_rect.width_y = stride + 2 * half_min_space;
-    rts.emplace_back(qw_rect);
-
-    int id = -1;
     for (set<int>::iterator it = contribute_metals.begin(); it != contribute_metals.end(); it++) {
         Layout temp = layouts[*it];
         temp.bl_x -= half_min_space;
         temp.bl_y -= half_min_space;
         temp.tr_x += half_min_space;
         temp.tr_y += half_min_space;
-        if (qw.index == id)
-            printf("(%d %d %d %d)\n", temp.bl_x, temp.bl_y, temp.tr_x, temp.tr_y);
+
         vector<Rect> temp_rts;
         int rts_size = rts.size();
-        for (int j = 0; j < rts_size; j++) {
-            Rect rt = rts[j];
-            if (qw.index == id)
-                printf("  (%d %d %d %d)\n", rt.bl_x, rt.bl_y, rt.tr_x, rt.tr_y);
+        for (int i = 0; i < rts_size; i++) {
+            Rect rt = rts[i];
+
             // if not overlap then add
             if (rt.bl_x >= temp.tr_x || rt.tr_x <= temp.bl_x || rt.bl_y >= temp.tr_y || rt.tr_y <= temp.bl_y) {
                 temp_rts.emplace_back(rt);
@@ -481,13 +468,9 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const set<int> contri
             int bit2 = rt.tr_x > temp.tr_x ? 0 : 4;
             int bit3 = rt.tr_y > temp.tr_y ? 0 : 8;
             int condition = bit0 + bit1 + bit2 + bit3;
-            if (qw.index == id)
-                printf("  cond: %d\n", condition);
             
             Rect rt_new;
-            rt_new.near_critical = 0;
-            if (temp.is_critical)
-                rt_new.near_critical = 1;
+            rt_new.near_criticals = temp.is_critical ? rt.near_criticals + 1 : rt.near_criticals;
 
             if (condition == 0) {
                 // middle (rt.bl_x < temp.bl_x && rt.bl_y < temp.bl_y && rt.tr_x > temp.tr_x && rt.tr_y > temp.tr_y)
@@ -1192,7 +1175,7 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const set<int> contri
         rts.swap(temp_rts);
     }
 
-    sort(rts.begin(), rts.end(), LargerRect);
+    sort(rts.begin(), rts.end(), LessCriticalsRect);
 }
 
 // Rect FindMaxSpace(const vector<int> &qw, const int min_width, const int max_width, const int min_space)
@@ -1285,7 +1268,7 @@ void FindSpace(vector<Rect> &rts, const QuarterWindow &qw, const set<int> contri
 //     return rt;
 // }
 
-void AddMetalFill(QuarterWindow &qw, const Rect rt, const int layer)
+void AddMetalFill(Window &w, const Rect rt, const int layer)
 {
     Layout metal_fill;
     metal_fill.id = ++total_metals;
@@ -1308,18 +1291,28 @@ void AddMetalFill(QuarterWindow &qw, const Rect rt, const int layer)
     }
 
     long long metal_fill_area = (long long)width_x * width_y;
-    qw.area += metal_fill_area;
-    qw.contribute_metals.emplace_back(metal_fill.id);
-    
-    int size = qw.affected_window.size();
-    for (int i = 0; i < size; i++) {
-        windows[layer - 1][qw.affected_window[i]].area += metal_fill_area;
-        windows[layer - 1][qw.affected_window[i]].area_insufficient -= metal_fill_area;
-        if (windows[layer - 1][qw.affected_window[i]].area_insufficient <= 0) {
-            quarter_windows[layer - 1][windows[layer - 1][qw.affected_window[i]].included_qwindow[0]].violate_count--;
-            quarter_windows[layer - 1][windows[layer - 1][qw.affected_window[i]].included_qwindow[1]].violate_count--;
-            quarter_windows[layer - 1][windows[layer - 1][qw.affected_window[i]].included_qwindow[2]].violate_count--;
-            quarter_windows[layer - 1][windows[layer - 1][qw.affected_window[i]].included_qwindow[3]].violate_count--;
+    w.area += metal_fill_area;
+    w.area_insufficient -= metal_fill_area;
+
+    for (int i = 0; i < 4; i++) {
+        QuarterWindow &qw = quarter_windows[layer - 1][w.included_qwindow[i]];
+        if (!(metal_fill.bl_x >= qw.tr_x || metal_fill.tr_x <= qw.bl_x || metal_fill.bl_y >= qw.tr_y || metal_fill.tr_y <= qw.bl_y)) {
+            int bl_x = metal_fill.bl_x > qw.bl_x ? metal_fill.bl_x : qw.bl_x;
+            int bl_y = metal_fill.bl_y > qw.bl_y ? metal_fill.bl_y : qw.bl_y;
+            int tr_x = metal_fill.tr_x < qw.tr_x ? metal_fill.tr_x : qw.tr_x;
+            int tr_y = metal_fill.tr_y < qw.tr_y ? metal_fill.tr_y : qw.tr_y;
+            long long area = (long long)(tr_x - bl_x) * (tr_y - bl_y);
+
+            qw.area += area;
+            qw.contribute_metals.emplace_back(metal_fill.id);
+
+            int size = qw.affected_window.size();
+            for (int j = 0; j < size; j++) {
+                if (qw.affected_window[j] != w.index) {
+                    windows[layer - 1][qw.affected_window[j]].area += area;
+                    windows[layer - 1][qw.affected_window[j]].area_insufficient -= area;
+                }
+            }    
         }
     }
 
@@ -1327,7 +1320,7 @@ void AddMetalFill(QuarterWindow &qw, const Rect rt, const int layer)
     metal_fill_layouts.emplace_back(metal_fill);
 }
 
-long long ShrinkMetalFill(QuarterWindow &qw, Rect rt, long long target_area,
+long long ShrinkMetalFill(Window &w, Rect rt, long long target_area,
                           const int min_width, const int max_width, const int layer)
 {
     int x_width = rt.width_x;
@@ -1362,11 +1355,11 @@ long long ShrinkMetalFill(QuarterWindow &qw, Rect rt, long long target_area,
     }
     printf(" %d*%d=%lld(%d) ", rt.width_x, rt.width_y, (long long)rt.width_x * rt.width_y, layer);
 
-    AddMetalFill(qw, rt, layer);
+    AddMetalFill(w, rt, layer);
     return (long long)rt.width_x * rt.width_y;
 }
 
-long long DivideMetalFill(QuarterWindow &qw, Rect rt, long long target_area,
+long long DivideMetalFill(Window &w, Rect rt, long long target_area,
                           const int min_width, const int max_width, const int min_space, const int layer)
 {
     vector<Rect> rts;
@@ -1474,21 +1467,21 @@ long long DivideMetalFill(QuarterWindow &qw, Rect rt, long long target_area,
         if (total_fill_area + rect_area > target_area)
             break;
         printf(" (%d, %d, %d, %d) ", rts[i].bl_x, rts[i].bl_y, rts[i].tr_x, rts[i].tr_y);
-        AddMetalFill(qw, rts[i], layer);
+        AddMetalFill(w, rts[i], layer);
         total_fill_area += rect_area;
     }
     printf(" %lld ", total_fill_area);
     // if break, try to shrink
     if (i != size) {
         printf(" shrink:");
-        total_fill_area += ShrinkMetalFill(qw, rts[i], target_area - total_fill_area, min_width, max_width, layer);
+        total_fill_area += ShrinkMetalFill(w, rts[i], target_area - total_fill_area, min_width, max_width, layer);
     }
 
     printf(" %lld ", total_fill_area);
     return total_fill_area;
 }
 
-long long MinMetalFill(QuarterWindow &qw, Rect rt, const int min_width, const int layer)
+long long MinMetalFill(Window &w, Rect rt, const int min_width, const int layer)
 {
     int x_offset = (rt.width_x - min_width) / 2;
     int y_offset = (rt.width_y - min_width) / 2;
@@ -1499,13 +1492,13 @@ long long MinMetalFill(QuarterWindow &qw, Rect rt, const int min_width, const in
     rt.width_x = min_width;
     rt.width_y = min_width;
 
-    AddMetalFill(qw, rt, layer);
+    AddMetalFill(w, rt, layer);
     return (long long)rt.width_x * rt.width_y;
 }
 
-long long UpdateMetalFill(QuarterWindow &qw, const Rect rt, const int layer)
+long long UpdateMetalFill(Window &w, const Rect rt, const int layer)
 {
-    AddMetalFill(qw, rt, layer);
+    AddMetalFill(w, rt, layer);
     return (long long)rt.width_x * rt.width_y;
 }
 
@@ -1519,6 +1512,7 @@ void FillMetalRandomly()
         vector<QuarterWindow> &qws = quarter_windows[layer - 1];
         const Rule &r = rules[layer - 1];
 
+        // half of min_space
         int half_min_space = (r.min_space + 1) / 2;
         // min quarter window area
         long long min_area = (long long)stride * stride * r.min_density;
@@ -1541,107 +1535,137 @@ void FillMetalRandomly()
             if (min_insuff_idx == -1)
                 break;
 
-            vector<int> qw_included(ws[min_insuff_idx].included_qwindow.begin(), ws[min_insuff_idx].included_qwindow.end());
-            for (int i = 1; i < 4; i++) {
-                int temp = qw_included[i];
-                int j = i - 1;
-                while (j >= 0 && qws[qw_included[j]].violate_count < qws[temp].violate_count) {
-                    qw_included[j + 1] = qw_included[j];
-                    j--;
-                }
-                qw_included[j + 1] = temp;
-            }
-
             printf("w:%d %lld\n", min_insuff_idx, min_insuff);
+            Window &w = ws[min_insuff_idx];
             long long target_area = min_insuff;
-            for (int i = 0; i < 4; i++) {
-                QuarterWindow &qw = qws[qw_included[i]];
 
-                vector<Rect> rts;
-                vector<int> contribute_metals(qw.contribute_metals.begin(), qw.contribute_metals.end());
-                // left
-                if (qw.index % qwindow_y != 0)
-                    contribute_metals.insert(contribute_metals.end(), 
-                                             qws[qw.index - 1].contribute_metals.begin(),
-                                             qws[qw.index - 1].contribute_metals.end());
-                // top
-                if (qw.index / qwindow_y != 0)
-                    contribute_metals.insert(contribute_metals.end(), 
-                                             qws[qw.index - qwindow_y].contribute_metals.begin(),
-                                             qws[qw.index - qwindow_y].contribute_metals.end());
-                // top left
-                if (qw.index % qwindow_y != 0 && qw.index / qwindow_y != 0)
-                    contribute_metals.insert(contribute_metals.end(), 
-                                             qws[qw.index - qwindow_y - 1].contribute_metals.begin(),
-                                             qws[qw.index - qwindow_y - 1].contribute_metals.end());
-                // right
-                if (qw.index % qwindow_y != qwindow_y - 1)
-                    contribute_metals.insert(contribute_metals.end(), 
-                                            qws[qw.index + 1].contribute_metals.begin(),
-                                            qws[qw.index + 1].contribute_metals.end());
-                // top right
-                if (qw.index % qwindow_y != qwindow_y - 1 && qw.index / qwindow_y != 0)
-                    contribute_metals.insert(contribute_metals.end(), 
-                                             qws[qw.index - qwindow_y + 1].contribute_metals.begin(),
-                                             qws[qw.index - qwindow_y + 1].contribute_metals.end());
-                // bottom
-                if (qw.index / qwindow_y != qwindow_x - 1)
-                    contribute_metals.insert(contribute_metals.end(), 
-                                             qws[qw.index + qwindow_y].contribute_metals.begin(),
-                                             qws[qw.index + qwindow_y].contribute_metals.end());
-                // bottom left
-                if (qw.index % qwindow_y != 0 && qw.index / qwindow_y != qwindow_x - 1)
-                    contribute_metals.insert(contribute_metals.end(), 
-                                             qws[qw.index + qwindow_y - 1].contribute_metals.begin(),
-                                             qws[qw.index + qwindow_y - 1].contribute_metals.end());
-                // bottom right
-                if (qw.index % qwindow_y != qwindow_y - 1 && qw.index / qwindow_y != qwindow_x - 1)
-                    contribute_metals.insert(contribute_metals.end(), 
-                                             qws[qw.index + qwindow_y + 1].contribute_metals.begin(),
-                                             qws[qw.index + qwindow_y + 1].contribute_metals.end());
-                FindSpace(rts, qw, set<int>(contribute_metals.begin(), contribute_metals.end()), r.min_width, half_min_space);
+            vector<int> contribute_metals;
+            int top_left = w.included_qwindow[0];
+            int top_right = w.included_qwindow[1];
+            int bottom_left = w.included_qwindow[2];
+            int bottom_right = w.included_qwindow[3];
+            // left
+            if (top_left % qwindow_y != 0)
+                contribute_metals.insert(contribute_metals.end(),
+                                         qws[top_left - 1].contribute_metals.begin(),
+                                         qws[top_left - 1].contribute_metals.end());
+            if (bottom_left % qwindow_y != 0)
+                contribute_metals.insert(contribute_metals.end(),
+                                         qws[bottom_left - 1].contribute_metals.begin(),
+                                         qws[bottom_left - 1].contribute_metals.end());
+            // top
+            if (top_left / qwindow_y != 0)
+                contribute_metals.insert(contribute_metals.end(),
+                                         qws[top_left - qwindow_y].contribute_metals.begin(),
+                                         qws[top_left - qwindow_y].contribute_metals.end());
+            if (top_right / qwindow_y != 0)
+                contribute_metals.insert(contribute_metals.end(),
+                                         qws[top_right - qwindow_y].contribute_metals.begin(),
+                                         qws[top_right - qwindow_y].contribute_metals.end());
+            // top left
+            if (top_left % qwindow_y != 0 && top_left / qwindow_y != 0)
+                contribute_metals.insert(contribute_metals.end(),
+                                         qws[top_left - qwindow_y - 1].contribute_metals.begin(),
+                                         qws[top_left - qwindow_y - 1].contribute_metals.end());
+            // right
+            if (top_right % qwindow_y != qwindow_y - 1)
+                contribute_metals.insert(contribute_metals.end(),
+                                         qws[top_right + 1].contribute_metals.begin(),
+                                         qws[top_right + 1].contribute_metals.end());
+            if (bottom_right % qwindow_y != qwindow_y - 1)
+                contribute_metals.insert(contribute_metals.end(),
+                                         qws[bottom_right + 1].contribute_metals.begin(),
+                                         qws[bottom_right + 1].contribute_metals.end());
+            // top right
+            if (top_right % qwindow_y != qwindow_y - 1 && top_right / qwindow_y != 0)
+                contribute_metals.insert(contribute_metals.end(),
+                                         qws[top_right - qwindow_y + 1].contribute_metals.begin(),
+                                         qws[top_right - qwindow_y + 1].contribute_metals.end());
+            // bottom
+            if (bottom_left / qwindow_y != qwindow_x - 1)
+                contribute_metals.insert(contribute_metals.end(),
+                                         qws[bottom_left + qwindow_y].contribute_metals.begin(),
+                                         qws[bottom_left + qwindow_y].contribute_metals.end());
+            if (bottom_right / qwindow_y != qwindow_x - 1)
+                contribute_metals.insert(contribute_metals.end(),
+                                         qws[bottom_right + qwindow_y].contribute_metals.begin(),
+                                         qws[bottom_right + qwindow_y].contribute_metals.end());
+            // bottom left
+            if (bottom_left % qwindow_y != 0 && bottom_left / qwindow_y != qwindow_x - 1)
+                contribute_metals.insert(contribute_metals.end(),
+                                         qws[bottom_left + qwindow_y - 1].contribute_metals.begin(),
+                                         qws[bottom_left + qwindow_y - 1].contribute_metals.end());
+            // bottom right
+            if (bottom_right % qwindow_y != qwindow_y - 1 && bottom_right / qwindow_y != qwindow_x - 1)
+                contribute_metals.insert(contribute_metals.end(),
+                                         qws[bottom_right + qwindow_y + 1].contribute_metals.begin(),
+                                         qws[bottom_right + qwindow_y + 1].contribute_metals.end());
+            // original
+            contribute_metals.insert(contribute_metals.end(),
+                                     qws[top_left].contribute_metals.begin(),
+                                     qws[top_left].contribute_metals.end());
+            contribute_metals.insert(contribute_metals.end(),
+                                     qws[top_right].contribute_metals.begin(),
+                                     qws[top_right].contribute_metals.end());
+            contribute_metals.insert(contribute_metals.end(),
+                                     qws[bottom_left].contribute_metals.begin(),
+                                     qws[bottom_left].contribute_metals.end());
+            contribute_metals.insert(contribute_metals.end(),
+                                     qws[bottom_right].contribute_metals.begin(),
+                                     qws[bottom_right].contribute_metals.end());
 
-                int size = rts.size();
-                for (int i = 0; i < size; i++) {
-                    Rect metal_fill = rts[i];
-                    metal_fill.bl_x += half_min_space;
-                    metal_fill.bl_y += half_min_space;
-                    metal_fill.tr_x -= half_min_space;
-                    metal_fill.tr_y -= half_min_space;
-                    metal_fill.width_x = metal_fill.tr_x -  metal_fill.bl_x;
-                    metal_fill.width_y = metal_fill.tr_y -  metal_fill.bl_y;
-                    long long metal_fill_area = (long long)metal_fill.width_x * metal_fill.width_y;
-                    printf("  %lld %lld\n", target_area, metal_fill_area);
+            vector<Rect> rts;
+            Rect w_rect;
+            w_rect.bl_x = w.bl_x - half_min_space;
+            w_rect.bl_y = w.bl_y - half_min_space;
+            w_rect.tr_x = w.tr_x + half_min_space;
+            w_rect.tr_y = w.tr_y + half_min_space;
+            w_rect.width_x = w_rect.tr_x - w_rect.bl_x;
+            w_rect.width_y = w_rect.tr_y - w_rect.bl_y;
+            w_rect.near_criticals = 0;
+            rts.emplace_back(w_rect);
 
-                    if (target_area < min_metal_fill) {
-                        printf("    min ");
-                        target_area -= MinMetalFill(qw, metal_fill, r.min_width, layer);
-                        printf("%lld\n", target_area);
-                    } else {
-                        if (metal_fill.width_x <= r.max_fill_width && metal_fill.width_y <= r.max_fill_width) {
-                            if (target_area >= metal_fill_area) {
-                                printf("    update\n");
-                                target_area -= UpdateMetalFill(qw, metal_fill, layer);
-                            } else {
-                                printf("    shrink: ");
-                                target_area -= ShrinkMetalFill(qw, metal_fill, target_area,
-                                                               r.min_width, r.max_fill_width, layer);
-                                printf("\n");
-                            }
+            FindSpace(rts, set<int>(contribute_metals.begin(), contribute_metals.end()), r.min_width, half_min_space);
+
+            int size = rts.size();
+            for (int i = 0; i < size; i++) {
+                Rect metal_fill = rts[i];
+                metal_fill.bl_x += half_min_space;
+                metal_fill.bl_y += half_min_space;
+                metal_fill.tr_x -= half_min_space;
+                metal_fill.tr_y -= half_min_space;
+                metal_fill.width_x = metal_fill.tr_x -  metal_fill.bl_x;
+                metal_fill.width_y = metal_fill.tr_y -  metal_fill.bl_y;
+                long long metal_fill_area = (long long)metal_fill.width_x * metal_fill.width_y;
+                printf("  %lld %lld\n", target_area, metal_fill_area);
+
+                if (target_area < min_metal_fill) {
+                    printf("    min ");
+                    target_area -= MinMetalFill(w, metal_fill, r.min_width, layer);
+                    printf("%lld\n", target_area);
+                } else {
+                    if (metal_fill.width_x <= r.max_fill_width && metal_fill.width_y <= r.max_fill_width) {
+                        if (target_area >= metal_fill_area) {
+                            printf("    update\n");
+                            target_area -= UpdateMetalFill(w, metal_fill, layer);
                         } else {
-                            printf("    divide: ");
-                            target_area -= DivideMetalFill(qw, metal_fill, target_area,
-                                                           r.min_width, r.max_fill_width, r.min_space, layer);
+                            printf("    shrink: ");
+                            target_area -= ShrinkMetalFill(w, metal_fill, target_area,
+                                                           r.min_width, r.max_fill_width, layer);
                             printf("\n");
                         }
+                    } else {
+                        printf("    divide: ");
+                        target_area -= DivideMetalFill(w, metal_fill, target_area,
+                                                       r.min_width, r.max_fill_width, r.min_space, layer);
+                        printf("\n");
                     }
-
-                    if (target_area <= 0)
-                        break;
                 }
+
                 if (target_area <= 0)
-                        break;
+                    break;
             }
+
             if (target_area > 0) {
                 printf("[Error] target area remaining after metal fill\n");
                 exit(1);
