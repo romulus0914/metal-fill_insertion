@@ -19,7 +19,7 @@ typedef struct rect {
     int tr_y;
     int width_x;
     int width_y;
-    int near_critical;
+    int near_criticals;
 } Rect;
 
 typedef struct layout {
@@ -78,7 +78,6 @@ typedef struct quarter_window {
     int tr_x;
     int tr_y;
     std::vector<int> contribute_metals;
-    int violate_count;
     std::vector<int> affected_window;
 } QuarterWindow;
 
@@ -87,6 +86,11 @@ typedef struct window {
     long long area;
     long long area_insufficient;
     double density;
+    // coordinate
+    int bl_x;
+    int bl_y;
+    int tr_x;
+    int tr_y;
     std::vector<int> included_qwindow;
 } Window;
 
