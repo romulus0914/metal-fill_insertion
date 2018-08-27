@@ -44,31 +44,6 @@ typedef struct rule {
     double max_density;
 } Rule;
 
-// class Metal {
-// public:
-//     int id;
-//     Metal *next_x;
-//     Metal *next_y;
-
-//     Metal() {
-//         id = 0;
-//         next_x = NULL;
-//         next_y = NULL;
-//     };
-
-//     Metal(int id) {
-//         this->id = id;
-//         next_x = NULL;
-//         next_y = NULL;
-//     }
-
-//     Metal(int id, mMetal *next_x, Metal *next_y) {
-//         this->id = id;
-//         this->next_x = next_x;
-//         this->next_y = next_y;
-//     }
-// };
-
 typedef struct quarter_window {
     int index;
     long long area;
@@ -136,9 +111,6 @@ int qwindow_x, qwindow_y;
 // rule file
 std::vector<Rule> rules;
 std::vector<long long> min_area_per_window;
-
-// metal linked list, head nodes of each layer
-// std::vector<Metal*> metals;
 
 // 1/4 window
 std::vector<std::vector<QuarterWindow>> quarter_windows;
