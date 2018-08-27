@@ -85,74 +85,6 @@ void ReadCircuit()
         l.is_critical = critical_nets.find(l.net_id) != critical_nets.end() ? 1 : 0;
 
         layouts.emplace_back(l);
-
-    //     // get or create the head node of that layer
-    //     if (metals.size() < l.layer) {
-    //         Metal *head = new Metal(l.id);
-    //         metals.emplace_back(head);
-    //         continue;
-    //     }
-    //     Metal *metal = metals[l.layer - 1];
-
-    //     Layout temp = layouts[metal->id];
-    //     // sort order: x -> y
-    //     // if x < head.x, replace head node
-    //     if (l.bl_x < temp.bl_x) {
-    //         Metal *new_head = new Metal(l.id);
-    //         new_head->next_x = metal;
-    //         metals[l.layer - 1] = new_head;
-    //         continue;
-    //     }
-    //     // traverse in x direction
-    //     Metal *prev = metal;
-    //     while (metal != NULL) {
-    //         temp = layouts[metal->id];
-    //         if (l.bl_x <= temp.bl_x)
-    //             break;
-    //         prev = metal;
-    //         metal = metal->next_x;
-    //     }
-    //     // traverse to last node or smaller means there is no exist node with that x
-    //     if (metal == NULL || l.bl_x < temp.bl_x) {
-    //         // prev -> new_metal -> metal
-    //         Metal *new_metal = new Metal(l.id);
-    //         prev->next_x = new_metal;
-    //         new_metal->next_x = metal;
-    //         continue;
-    //     }
-    //     // same x, traverse in y direction
-    //     // if y < metal.y, replace y dircetion head node
-    //     if (l.bl_y < temp.bl_y) {
-    //         Metal *new_metal = new Metal(l.id);
-    //         if (metal == metals[l.layer - 1]) {
-    //             new_metal->next_x = metal->next_x;
-    //             new_metal->next_y = metal;
-    //             metal->next_x = NULL;
-    //             metals[l.layer - 1] = new_metal;
-    //         }
-    //         else {
-    //             // x direction link
-    //             new_metal->next_x = metal->next_x;
-    //             prev->next_x = new_metal;
-    //             // y direction link
-    //             metal->next_x = NULL;
-    //             new_metal->next_y = metal;
-    //         }
-    //         continue;
-    //     }
-    //     prev = metal;
-    //     // traverse in y direction
-    //     while (metal != NULL) {
-    //         temp = layouts[metal->id];
-    //         if (l.bl_y < temp.bl_y) // impossible same y
-    //             break;
-    //         prev = metal;
-    //         metal = metal->next_y;
-    //     }
-    //     // prev -> new_metal -> metal
-    //     Metal *new_metal = new Metal(l.id);
-    //     prev->next_y = new_metal;
-    //     new_metal->next_y = metal;
     }
 
     file.close();
@@ -431,14 +363,14 @@ void AnalyzeDensity()
     }
 }
 
-struct less_criticals_rect {
+struct rect_sort_order {
     bool operator()(Rect r1, Rect r2) const {
         if (r1.near_criticals != r2.near_criticals)
             return r1.near_criticals < r2.near_criticals;
         else
             return (long long)r1.width_x * r1.width_y > (long long)r2.width_x * r2.width_y;
     }
-} LessCriticalsRect;
+} RectSortOrder;
 
 void FindSpace(vector<Rect> &rts, const set<int> &contribute_metals, const int min_width, const int half_min_space)
 {
@@ -1175,98 +1107,8 @@ void FindSpace(vector<Rect> &rts, const set<int> &contribute_metals, const int m
         rts.swap(temp_rts);
     }
 
-    sort(rts.begin(), rts.end(), LessCriticalsRect);
+    sort(rts.begin(), rts.end(), RectSortOrder);
 }
-
-// Rect FindMaxSpace(const vector<int> &qw, const int min_width, const int max_width, const int min_space)
-// {
-//     Rect rt;
-//     rt.bl_x = -1;
-//     rt.bl_y = -1;
-//     rt.tr_x = -1;
-//     rt.tr_y = -1;
-//     rt.width_x = -1;
-//     rt.width_y = -1;
-//     long long max_area = 0;
-//     long long temp_area = (long long)stride * stride;
-//     const int actual_min_width = min_width + 2 * min_space;
-//     const int actual_max_width = max_width + 2 * min_space;
-
-//     vector<int> wl(stride, 0);
-//     vector<int> wr(stride, 0);
-//     vector<int> h(stride, 0);
-//     vector<int> l(stride, 0);
-//     vector<int> r(stride, 0);
-
-//     for (int y = 0; y < stride; y++) {
-//         // search how far it can extend on left
-//         for (int x = 0; x < stride; x++) {
-//             if (!qw[y * stride + x]) {
-//                 if (x == 0)
-//                     wl[0] = 1;
-//                 else
-//                     wl[x] = wl[x - 1] + 1;
-//             } else {
-//                 wl[x] = 0;
-//             }
-//         }
-//         // search how far it can extend on right
-//         for (int x = stride - 1; x >= 0; x--) {
-//             if (!qw[y * stride + x]) {
-//                 if (x == stride - 1)
-//                     wr[stride - 1] = 1;
-//                 else
-//                     wr[x] = wr[x + 1] + 1;
-//             }
-//             else {
-//                 wr[x] = 0;
-//             }
-//         }
-//         // search how far it can extend on top
-//         for (int x = 0; x < stride; x++) {
-//             if (!qw[y * stride + x])
-//                 h[x]++;
-//             else
-//                 h[x] = 0;
-//         }
-//         // search how far it can extend on left after reaching top
-//         for (int x = 0; x < stride; x++) {
-//             if (l[x] == 0)
-//                 l[x] = wl[x];
-//             else
-//                 l[x] = min(l[x], wl[x]);
-//         }
-//         // search how far it can extend on right after reaching top
-//         for (int x = 0; x < stride; x++) {
-//             if (r[x] == 0)
-//                 r[x] = wr[x];
-//             else
-//                 r[x] = min(r[x], wr[x]);
-//         }
-
-//         // search for the smallest matching area
-//         for (int x = 0; x < stride; x++) {
-//             int width1 = l[x] + r[x] - 1;
-//             int width2 = h[x];
-//             // no constraint on max_width because empty space may always be larger than max_width
-//             if (width1 >= actual_min_width && width2 >= actual_min_width) {
-//                 long long area = (long long)(width1 - 2 * min_space) * (width2 - 2 * min_space);
-//                 if (area > max_area) {
-//                     rt.bl_x = x - l[x] + 1 + min_space;
-//                     rt.bl_y = y - h[x] + 1 + min_space;
-//                     rt.tr_x = x + r[x] - 1 - min_space;
-//                     rt.tr_y = y - min_space;
-//                     max_area = area;
-//                 }
-//             }
-//         }
-//     }
-
-//     rt.width_x = rt.tr_x - rt.bl_x;
-//     rt.width_y = rt.tr_y - rt.bl_y;
-
-//     return rt;
-// }
 
 void AddMetalFill(Window &w, const Rect rt, const int layer)
 {
@@ -1281,15 +1123,8 @@ void AddMetalFill(Window &w, const Rect rt, const int layer)
     metal_fill.type = 3; // Fill
     metal_fill.is_critical = 0;
 
-    Rule &r = rules[layer - 1];
     int width_x = metal_fill.tr_x - metal_fill.bl_x;
     int width_y = metal_fill.tr_y - metal_fill.bl_y;
-    if (width_x < r.min_width || width_x > r.max_fill_width || width_y < r.min_width || width_y > r.max_fill_width) {
-        printf("[Error] violate rules at layer %d\n", layer);
-        printf("[Error] (%d %d %d %d %d %d)\n", metal_fill.bl_x, metal_fill.bl_y, metal_fill.tr_x, metal_fill.tr_y, width_x, width_y);
-        exit(1);
-    }
-
     long long metal_fill_area = (long long)width_x * width_y;
     w.area += metal_fill_area;
     w.area_insufficient -= metal_fill_area;
@@ -1353,7 +1188,6 @@ long long ShrinkMetalFill(Window &w, Rect rt, long long target_area,
         rt.tr_y = rt.bl_y + max_width;
         rt.width_y = max_width;
     }
-    printf(" %d*%d=%lld(%d) ", rt.width_x, rt.width_y, (long long)rt.width_x * rt.width_y, layer);
 
     AddMetalFill(w, rt, layer);
     return (long long)rt.width_x * rt.width_y;
@@ -1466,18 +1300,13 @@ long long DivideMetalFill(Window &w, Rect rt, long long target_area,
         long long rect_area = (long long)rts[i].width_x * rts[i].width_y;
         if (total_fill_area + rect_area > target_area)
             break;
-        printf(" (%d, %d, %d, %d) ", rts[i].bl_x, rts[i].bl_y, rts[i].tr_x, rts[i].tr_y);
         AddMetalFill(w, rts[i], layer);
         total_fill_area += rect_area;
     }
-    printf(" %lld ", total_fill_area);
     // if break, try to shrink
-    if (i != size) {
-        printf(" shrink:");
+    if (i != size)
         total_fill_area += ShrinkMetalFill(w, rts[i], target_area - total_fill_area, min_width, max_width, layer);
-    }
 
-    printf(" %lld ", total_fill_area);
     return total_fill_area;
 }
 
@@ -1502,7 +1331,7 @@ long long UpdateMetalFill(Window &w, const Rect rt, const int layer)
     return (long long)rt.width_x * rt.width_y;
 }
 
-void FillMetalRandomly()
+void FillMetal()
 {
     // window area;
     long long w_area = (long long)window_size * window_size;
@@ -1535,7 +1364,6 @@ void FillMetalRandomly()
             if (min_insuff_idx == -1)
                 break;
 
-            printf("w:%d %lld\n", min_insuff_idx, min_insuff);
             Window &w = ws[min_insuff_idx];
             long long target_area = min_insuff;
 
@@ -1637,30 +1465,19 @@ void FillMetalRandomly()
                 metal_fill.width_x = metal_fill.tr_x -  metal_fill.bl_x;
                 metal_fill.width_y = metal_fill.tr_y -  metal_fill.bl_y;
                 long long metal_fill_area = (long long)metal_fill.width_x * metal_fill.width_y;
-                printf("  %lld %lld\n", target_area, metal_fill_area);
 
-                if (target_area < min_metal_fill) {
-                    printf("    min ");
+                if (target_area < min_metal_fill)
                     target_area -= MinMetalFill(w, metal_fill, r.min_width, layer);
-                    printf("%lld\n", target_area);
-                } else {
-                    if (metal_fill.width_x <= r.max_fill_width && metal_fill.width_y <= r.max_fill_width) {
-                        if (target_area >= metal_fill_area) {
-                            printf("    update\n");
+                else
+                    if (metal_fill.width_x <= r.max_fill_width && metal_fill.width_y <= r.max_fill_width)
+                        if (target_area >= metal_fill_area)
                             target_area -= UpdateMetalFill(w, metal_fill, layer);
-                        } else {
-                            printf("    shrink: ");
+                        else
                             target_area -= ShrinkMetalFill(w, metal_fill, target_area,
                                                            r.min_width, r.max_fill_width, layer);
-                            printf("\n");
-                        }
-                    } else {
-                        printf("    divide: ");
+                    else
                         target_area -= DivideMetalFill(w, metal_fill, target_area,
                                                        r.min_width, r.max_fill_width, r.min_space, layer);
-                        printf("\n");
-                    }
-                }
 
                 if (target_area <= 0)
                     break;
@@ -1715,28 +1532,6 @@ void OutputAll()
     file.close();
 }
 
-void free_memory()
-{
-    // int total_layers = metals.size();
-    // for (int i = 0; i < total_layers; i++) {
-    //     Metal *metal_x = metals[i];
-    //     Metal *metal_y = metals[i];
-    //     Metal *metal_x_next = NULL;
-    //     Metal *metal_y_next = NULL;
-    //     while (metal_x != NULL) {
-    //         metal_x_next = metal_x->next_x;
-    //         while (metal_y != NULL) {
-    //             metal_y_next = metal_y->next_y;
-    //             delete metal_y;
-    //             metal_y = metal_y_next;
-    //         }
-    //         metal_x = metal_x_next;
-    //         metal_y = metal_x;
-    //     }
-    //     metals[i] = NULL;
-    // }
-}
-
 int main(int argc, char **argv)
 {
     if (argc != 2) {
@@ -1762,15 +1557,13 @@ int main(int argc, char **argv)
     // CalculateFringeCapacitance();
 
 #ifndef CHECKER_MODE
-    FillMetalRandomly();
+    FillMetal();
     #ifdef OUTPUT_ALL
         OutputAll();
     #else
         OutputFill();
     #endif
 #endif
-
-    // free_memory();
 
     return 0;
 }
