@@ -1,11 +1,7 @@
-#include <cstdio>
-#include <cstdlib>
-#include <ctime>
 #include <string.h>
 #include <iostream>
 #include <fstream>
 #include <algorithm>
-#include <utility>
 
 #include "problem_c.h"
 //#include "capacitance.h"
@@ -1543,7 +1539,7 @@ int main(int argc, char **argv)
 
     ReadConfig();
     ReadCircuit();
-    ReadProcess();
+    //ReadProcess();
     ReadRule();
 
     AnalyzeDensity();
