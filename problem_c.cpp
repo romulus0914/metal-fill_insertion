@@ -1122,8 +1122,6 @@ void AddMetalFill(Window &w, const Rect rt, const int layer)
     int width_x = metal_fill.tr_x - metal_fill.bl_x;
     int width_y = metal_fill.tr_y - metal_fill.bl_y;
     long long metal_fill_area = (long long)width_x * width_y;
-    w.area += metal_fill_area;
-    w.area_insufficient -= metal_fill_area;
 
     for (int i = 0; i < 4; i++) {
         QuarterWindow &qw = quarter_windows[layer - 1][w.included_qwindow[i]];
@@ -1139,10 +1137,8 @@ void AddMetalFill(Window &w, const Rect rt, const int layer)
 
             int size = qw.affected_window.size();
             for (int j = 0; j < size; j++) {
-                if (qw.affected_window[j] != w.index) {
-                    windows[layer - 1][qw.affected_window[j]].area += area;
-                    windows[layer - 1][qw.affected_window[j]].area_insufficient -= area;
-                }
+                windows[layer - 1][qw.affected_window[j]].area += area;
+                windows[layer - 1][qw.affected_window[j]].area_insufficient -= area;
             }    
         }
     }
@@ -1368,6 +1364,7 @@ void FillMetal()
             int top_right = w.included_qwindow[1];
             int bottom_left = w.included_qwindow[2];
             int bottom_right = w.included_qwindow[3];
+            // surrounding qwindow
             // left
             if (top_left % qwindow_y != 0)
                 contribute_metals.insert(contribute_metals.end(),
@@ -1424,7 +1421,22 @@ void FillMetal()
                 contribute_metals.insert(contribute_metals.end(),
                                          qws[bottom_right + qwindow_y + 1].contribute_metals.begin(),
                                          qws[bottom_right + qwindow_y + 1].contribute_metals.end());
-            // original
+            
+            vector<Rect> rts;
+            Rect w_rect;
+            w_rect.bl_x = w.bl_x - half_min_space;
+            w_rect.bl_y = w.bl_y - half_min_space;
+            w_rect.tr_x = w.tr_x + half_min_space;
+            w_rect.tr_y = w.tr_y + half_min_space;
+            w_rect.width_x = w_rect.tr_x - w_rect.bl_x;
+            w_rect.width_y = w_rect.tr_y - w_rect.bl_y;
+            w_rect.near_criticals = 0;
+            rts.emplace_back(w_rect);
+
+            FindSpace(rts, set<int>(contribute_metals.begin(), contribute_metals.end()), r.min_width, half_min_space);
+
+            vector<int>().swap(contribute_metals);
+            // included qwindow
             contribute_metals.insert(contribute_metals.end(),
                                      qws[top_left].contribute_metals.begin(),
                                      qws[top_left].contribute_metals.end());
@@ -1437,17 +1449,6 @@ void FillMetal()
             contribute_metals.insert(contribute_metals.end(),
                                      qws[bottom_right].contribute_metals.begin(),
                                      qws[bottom_right].contribute_metals.end());
-
-            vector<Rect> rts;
-            Rect w_rect;
-            w_rect.bl_x = w.bl_x - half_min_space;
-            w_rect.bl_y = w.bl_y - half_min_space;
-            w_rect.tr_x = w.tr_x + half_min_space;
-            w_rect.tr_y = w.tr_y + half_min_space;
-            w_rect.width_x = w_rect.tr_x - w_rect.bl_x;
-            w_rect.width_y = w_rect.tr_y - w_rect.bl_y;
-            w_rect.near_criticals = 0;
-            rts.emplace_back(w_rect);
 
             FindSpace(rts, set<int>(contribute_metals.begin(), contribute_metals.end()), r.min_width, half_min_space);
 
