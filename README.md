@@ -1,4 +1,4 @@
-# problem_C
+# 2018 ICCAD Problem C
 
 ## Problem Description
 
